@@ -1,106 +1,97 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { motion } from "framer-motion"
 import { SidebarNavigation } from "@/components/sidebar-navigation"
 import { MainHeader } from "@/components/main-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { ChevronDown, ChevronRight, Download, FileSpreadsheet, RotateCcw, CheckCircle } from "lucide-react"
+import { ChevronDown, ChevronRight, Download, FileSpreadsheet, CheckCircle, Info } from "lucide-react"
 import { useRouter } from "next/navigation"
 
-interface ProcessingResult {
-  id: string
-  fileName: string
-  status: "success" | "error" | "processing"
-  extractedData: any
-  transformedData: any
-  timestamp: string
+type FileResult = {
+  fileName?: string
+  template_id: string
+  compiled: { extract_instr: string; transform_instr: string }
+  result: any // normalmente Array<Record<string, any>> o un objeto
+}
+
+type ProcessingData = {
+  sourceType: string
+  selectedTemplate: string
+  fileCount: number
+  results: FileResult[]
+  when: string
+}
+
+function isArrayOfRecords(x: any): x is Record<string, any>[] {
+  return Array.isArray(x) && x.every((r) => r && typeof r === "object" && !Array.isArray(r))
+}
+
+function toCSV(rows: Record<string, any>[]): string {
+  if (!rows.length) return ""
+  const headers = Array.from(
+    rows.reduce((set, r) => {
+      Object.keys(r).forEach((k) => set.add(k))
+      return set
+    }, new Set<string>())
+  )
+  const esc = (v: any) => {
+    if (v === null || v === undefined) return ""
+    const s = typeof v === "string" ? v : JSON.stringify(v)
+    const needsQuote = /[",\n;]/.test(s)
+    return needsQuote ? `"${s.replace(/"/g, '""')}"` : s
+  }
+  const lines = [headers.join(","), ...rows.map((r) => headers.map((h) => esc(r[h])).join(","))]
+  return lines.join("\n")
 }
 
 export default function ResultsPage() {
-  const [processingData, setProcessingData] = useState<any>(null)
-  const [results, setResults] = useState<ProcessingResult[]>([])
-  const [selectedTemplate, setSelectedTemplate] = useState<string>("")
-  const [expandedResults, setExpandedResults] = useState<Set<string>>(new Set())
+  const [processingData, setProcessingData] = useState<ProcessingData | null>(null)
+  const [expanded, setExpanded] = useState<Set<number>>(new Set())
   const router = useRouter()
 
   useEffect(() => {
     const data = localStorage.getItem("processingData")
-    if (data) {
-      const parsed = JSON.parse(data)
+    if (!data) {
+      router.push("/")
+      return
+    }
+    try {
+      const parsed: ProcessingData = JSON.parse(data)
       setProcessingData(parsed)
-      setSelectedTemplate(parsed.selectedTemplate)
-
-      // Simulate processing results
-      const mockResults: ProcessingResult[] = Array.from({ length: 1 }, (_, i) => ({
-        id: `result-${i + 1}`,
-        fileName: `documento_${i + 1}.pdf`,
-        status: "success",
-        extractedData: {
-          nombre: `Cliente ${i + 1}`,
-          fecha: "2024-01-15",
-          monto: (Math.random() * 1000 + 100).toFixed(2),
-          direccion: `Calle Falsa ${123 + i}`,
-          telefono: `+54 11 ${Math.floor(Math.random() * 10000)}-${Math.floor(Math.random() * 10000)}`,
-        },
-        transformedData: {
-          customer_name: `Cliente ${i + 1}`,
-          invoice_date: "15/01/2024",
-          total_amount: `$${(Math.random() * 1000 + 100).toFixed(2)}`,
-          formatted_address: `Calle Falsa ${123 + i}, Buenos Aires, Argentina`,
-          contact_phone: `+54 11 ${Math.floor(Math.random() * 10000)}-${Math.floor(Math.random() * 10000)}`,
-        },
-        timestamp: new Date().toISOString(),
-      }))
-
-      setResults(mockResults)
-    } else {
+    } catch {
       router.push("/")
     }
   }, [router])
 
-  const toggleExpanded = (resultId: string) => {
-    const newExpanded = new Set(expandedResults)
-    if (newExpanded.has(resultId)) {
-      newExpanded.delete(resultId)
-    } else {
-      newExpanded.add(resultId)
+  const allTabularRows = useMemo(() => {
+    if (!processingData) return []
+    const rows: Record<string, any>[] = []
+    for (const fr of processingData.results || []) {
+      if (isArrayOfRecords(fr.result)) rows.push(...fr.result)
     }
-    setExpandedResults(newExpanded)
+    return rows
+  }, [processingData])
+
+  const exportAllCSV = () => {
+    if (!allTabularRows.length) {
+      alert("No hay datos tabulares para exportar (el resultado no es una lista de objetos).")
+      return
+    }
+    const csv = toCSV(allTabularRows)
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `transformar_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
-  const handleExportCSV = () => {
-    const csvData = results.map((result) => result.transformedData)
-    console.log("Exporting CSV:", csvData)
-    // TODO: Implement actual CSV export
-    alert("Exportando a CSV...")
-  }
-
-  const handleExportXLSX = () => {
-    const xlsxData = results.map((result) => result.transformedData)
-    console.log("Exporting XLSX:", xlsxData)
-    // TODO: Implement actual XLSX export
-    alert("Exportando a Excel...")
-  }
-
-  const handleReprocess = async () => {
-    if (!selectedTemplate || !processingData) return
-
-    const updatedData = { ...processingData, selectedTemplate }
-    localStorage.setItem("processingData", JSON.stringify(updatedData))
-
-    // TODO: Make actual API call to reprocess
-    alert(`Reprocesando con plantilla: ${selectedTemplate}`)
-    window.location.reload()
-  }
-
-  if (!processingData) {
-    return <div>Cargando...</div>
-  }
+  if (!processingData) return <div className="p-6">Cargando…</div>
 
   return (
     <div className="flex h-screen bg-background">
@@ -113,138 +104,160 @@ export default function ResultsPage() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.4 }}
             className="max-w-6xl mx-auto space-y-6"
           >
-            {/* Processing Summary */}
+            {/* Resumen */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <CheckCircle className="w-5 h-5 text-green-500" />
-                  Resumen del Procesamiento
+                  Resumen
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="grid md:grid-cols-4 gap-4">
-                  <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground">Fuente</p>
-                    <Badge variant="outline">{processingData.sourceType.toUpperCase()}</Badge>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground">Plantilla Utilizada</p>
-                    <Badge className="bg-primary/10 text-primary">{processingData.selectedTemplate}</Badge>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground">Estado</p>
-                    <Badge className="bg-green-100 text-green-800">Completado</Badge>
-                  </div>
+              <CardContent className="grid md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Fuente</p>
+                  <Badge variant="outline">{processingData.sourceType.toUpperCase()}</Badge>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Plantilla</p>
+                  <Badge className="bg-primary/10 text-primary">{processingData.selectedTemplate}</Badge>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Archivos</p>
+                  <Badge variant="secondary">{processingData.fileCount}</Badge>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Fecha</p>
+                  <Badge variant="outline">
+                    {new Date(processingData.when).toLocaleString()}
+                  </Badge>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Export Actions */}
+            {/* Acciones */}
             <Card>
               <CardHeader>
-                <CardTitle>Acciones de Exportación</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <FileSpreadsheet className="w-5 h-5" />
+                  Exportación
+                </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-4">
-                  <Button onClick={handleExportCSV} className="flex items-center gap-2">
-                    <Download className="w-4 h-4" />
-                    Exportar CSV
-                  </Button>
-                  <Button
-                    onClick={handleExportXLSX}
-                    variant="outline"
-                    className="flex items-center gap-2 bg-transparent"
-                  >
-                    <FileSpreadsheet className="w-4 h-4" />
-                    Exportar XLSX
-                  </Button>
-                  <div className="flex items-center gap-2">
-                    <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
-                      <SelectTrigger className="w-48">
-                        <SelectValue placeholder="Seleccionar plantilla" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="facturacion">Plantilla de Facturación</SelectItem>
-                        <SelectItem value="inventario">Plantilla de Inventario</SelectItem>
-                        <SelectItem value="clientes">Plantilla de Clientes</SelectItem>
-                        <SelectItem value="pedidos">Plantilla de Pedidos</SelectItem>
-                        <SelectItem value="reportes">Plantilla de Reportes</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      onClick={handleReprocess}
-                      variant="outline"
-                      disabled={selectedTemplate === processingData.selectedTemplate}
-                      className="flex items-center gap-2 bg-transparent"
-                    >
-                      <RotateCcw className="w-4 h-4" />
-                      Reprocesar
-                    </Button>
-                  </div>
+              <CardContent className="flex gap-3 flex-wrap">
+                <Button onClick={exportAllCSV} className="flex items-center gap-2">
+                  <Download className="w-4 h-4" />
+                  Exportar CSV (todos)
+                </Button>
+                <div className="flex items-center text-sm text-muted-foreground gap-2">
+                  <Info className="w-4 h-4" />
+                  Exporta si el resultado es una <em>lista de objetos</em>. Si no, descarga sólo será posible desde la vista JSON.
                 </div>
               </CardContent>
             </Card>
 
-            {/* Results */}
+            {/* Resultados por archivo */}
             <Card>
               <CardHeader>
-                <CardTitle>Resultados Detallados</CardTitle>
+                <CardTitle>Resultados</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {results.map((result, index) => (
-                  <motion.div
-                    key={result.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                  >
-                    <Collapsible>
-                      <CollapsibleTrigger
-                        onClick={() => toggleExpanded(result.id)}
-                        className="flex items-center justify-between w-full p-4 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          {expandedResults.has(result.id) ? (
-                            <ChevronDown className="w-4 h-4" />
-                          ) : (
-                            <ChevronRight className="w-4 h-4" />
-                          )}
-                          <span className="font-medium">{result.fileName}</span>
-                          <Badge
-                            className={
-                              result.status === "success" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                            }
-                          >
-                            {result.status === "success" ? "Éxito" : "Error"}
-                          </Badge>
-                        </div>
-                        <span className="text-sm text-muted-foreground">
-                          {new Date(result.timestamp).toLocaleString()}
-                        </span>
-                      </CollapsibleTrigger>
+                {(processingData.results || []).map((fr, idx) => {
+                  const isOpen = expanded.has(idx)
+                  const fileName = fr.fileName || `archivo_${idx + 1}`
+                  const asRows = isArrayOfRecords(fr.result)
+                  const sampleRow = asRows ? fr.result[0] : null
+                  const headers = sampleRow ? Object.keys(sampleRow) : []
 
-                      <CollapsibleContent className="mt-4">
-                        <div className="grid md:grid-cols-2 gap-4">
-                          <div>
-                            <h4 className="font-semibold mb-2 text-sm">Datos Extraídos</h4>
-                            <pre className="bg-muted p-3 rounded text-xs overflow-auto max-h-48">
-                              {JSON.stringify(result.extractedData, null, 2)}
-                            </pre>
+                  return (
+                    <motion.div
+                      key={idx}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.2, delay: idx * 0.05 }}
+                    >
+                      <Collapsible>
+                        <CollapsibleTrigger
+                          onClick={() => {
+                            const next = new Set(expanded)
+                            if (next.has(idx)) next.delete(idx)
+                            else next.add(idx)
+                            setExpanded(next)
+                          }}
+                          className="flex items-center justify-between w-full p-4 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                            <span className="font-medium">{fileName}</span>
+                            <Badge variant="outline">{fr.template_id}</Badge>
                           </div>
-                          <div>
-                            <h4 className="font-semibold mb-2 text-sm">Datos Transformados</h4>
-                            <pre className="bg-muted p-3 rounded text-xs overflow-auto max-h-48">
-                              {JSON.stringify(result.transformedData, null, 2)}
-                            </pre>
-                          </div>
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  </motion.div>
-                ))}
+                          <span className="text-xs text-muted-foreground">click para ver detalle</span>
+                        </CollapsibleTrigger>
+
+                        <CollapsibleContent className="mt-4 space-y-4">
+                          {/* Instrucciones compiladas */}
+                          <Card className="border-primary/20">
+                            <CardHeader className="py-3">
+                              <CardTitle className="text-sm">Instrucciones compiladas</CardTitle>
+                            </CardHeader>
+                            <CardContent className="grid md:grid-cols-2 gap-4">
+                              <div>
+                                <p className="text-xs text-muted-foreground mb-1">extract_instr</p>
+                                <pre className="bg-muted p-3 rounded text-xs overflow-auto">
+                                  {fr.compiled?.extract_instr}
+                                </pre>
+                              </div>
+                              <div>
+                                <p className="text-xs text-muted-foreground mb-1">transform_instr</p>
+                                <pre className="bg-muted p-3 rounded text-xs overflow-auto">
+                                  {fr.compiled?.transform_instr}
+                                </pre>
+                              </div>
+                            </CardContent>
+                          </Card>
+
+                          {/* Resultado */}
+                          <Card>
+                            <CardHeader className="py-3">
+                              <CardTitle className="text-sm">Resultado</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              {asRows && headers.length ? (
+                                <div className="w-full overflow-auto">
+                                  <table className="w-full text-sm border rounded">
+                                    <thead className="bg-muted/50">
+                                      <tr>
+                                        {headers.map((h) => (
+                                          <th key={h} className="text-left p-2 border-b">{h}</th>
+                                        ))}
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {fr.result.map((row: Record<string, any>, i: number) => (
+                                        <tr key={i} className="border-b hover:bg-muted/20">
+                                          {headers.map((h) => (
+                                            <td key={h} className="p-2 align-top">
+                                              {typeof row[h] === "object" ? JSON.stringify(row[h]) : String(row[h] ?? "")}
+                                            </td>
+                                          ))}
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              ) : (
+                                <pre className="bg-muted p-3 rounded text-xs overflow-auto max-h-80">
+                                  {JSON.stringify(fr.result, null, 2)}
+                                </pre>
+                              )}
+                            </CardContent>
+                          </Card>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    </motion.div>
+                  )
+                })}
               </CardContent>
             </Card>
           </motion.div>

@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { motion } from "framer-motion"
 import { SidebarNavigation } from "@/components/sidebar-navigation"
 import { MainHeader } from "@/components/main-header"
@@ -29,25 +29,51 @@ import {
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 
+type TemplateMeta = {
+  id: string
+  name: string
+  description?: string | null
+}
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
+
 export default function HomePage() {
   const [sourceType, setSourceType] = useState<string>("")
   const [files, setFiles] = useState<File[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState<string>("")
+  const [templates, setTemplates] = useState<TemplateMeta[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [currentStep, setCurrentStep] = useState(1)
   const router = useRouter()
 
-  const isStepComplete = (step: number) => {
-      switch (step) {
-        case 1:
-          return sourceType !== ""
-        case 2:
-          return sourceType !== "pdf" || files.length > 0
-        case 3:
-          return selectedTemplate !== ""
-        default:
-          return true
+  // --- Load templates from backend ---
+  useEffect(() => {
+    const loadTemplates = async () => {
+      try {
+        const r = await fetch(`${API_BASE}/templates`, { cache: "no-store" })
+        if (!r.ok) throw new Error(`GET /templates ${r.status}`)
+        const data = await r.json()
+        setTemplates(Array.isArray(data) ? data : [])
+      } catch (err) {
+        console.error("Error loading templates:", err)
       }
+    }
+    loadTemplates()
+  }, [])
+
+  const isStepComplete = (step: number) => {
+    switch (step) {
+      case 1:
+        return sourceType !== ""
+      case 2:
+        // si es PDF, al menos un archivo
+        return sourceType !== "pdf" || files.length > 0
+      case 3:
+        // plantilla seleccionada
+        return selectedTemplate !== ""
+      default:
+        return true
+    }
   }
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -56,46 +82,7 @@ export default function HomePage() {
     if (selectedFiles.length > 0) setCurrentStep(Math.max(currentStep, 3))
   }
 
-  const handleProcess = async () => {
-    if (!sourceType || !selectedTemplate) {
-      alert("Por favor completa todos los pasos antes de procesar")
-      return
-    }
-
-    setIsProcessing(true)
-
-    try {
-      const formData = new FormData()
-      files.forEach((file) => formData.append("files", file))
-      formData.append("sourceType", sourceType)
-      formData.append("template", selectedTemplate)
-
-      // TODO: Replace with actual API call
-      // const response = await fetch('/api/process', {
-      //   method: 'POST',
-      //   body: formData
-      // })
-
-      // Simulate processing delay
-      await new Promise((resolve) => setTimeout(resolve, 2000))
-
-      // Navigate to results page with processing data
-      const processingData = {
-        sourceType,
-        selectedTemplate,
-        fileCount: files.length,
-      }
-
-      localStorage.setItem("processingData", JSON.stringify(processingData))
-      router.push("/results")
-    } catch (error) {
-      console.error("Error processing:", error)
-      alert("Error al procesar los documentos")
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
+  // --- Helpers para UI ---
   const getSourceIcon = (type: string) => {
     switch (type) {
       case "pdf":
@@ -114,6 +101,76 @@ export default function HomePage() {
         return <FileType className="w-4 h-4" />
     }
   }
+
+  // --- Procesar: usa /process/document (sube y procesa sin guardar) ---
+  const handleProcess = async () => {
+    if (!sourceType || !selectedTemplate) {
+      alert("Por favor completa todos los pasos antes de procesar")
+      return
+    }
+
+    // MVP: soportamos PDF (documento manual) en una sola llamada
+    if (sourceType !== "pdf") {
+      alert("Por ahora, la demo procesa solo PDFs. Próximo paso: Gmail/Outlook/Text.")
+      return
+    }
+    if (files.length === 0) {
+      alert("Subí al menos un PDF")
+      return
+    }
+
+    setIsProcessing(true)
+
+    try {
+      // Si hay múltiples PDFs, los procesamos en lote (1 request por archivo)
+      const results: any[] = []
+      for (const file of files) {
+        const formData = new FormData()
+        formData.append("template_id", selectedTemplate)
+        formData.append("file", file)
+
+        const r = await fetch(`${API_BASE}/process/document`, {
+          method: "POST",
+          body: formData,
+        })
+        if (!r.ok) {
+          const txt = await r.text()
+          throw new Error(`POST /process/document (${r.status}) ${txt}`)
+        }
+        const data = await r.json()
+        results.push({
+          fileName: file.name,
+          ...data,
+        })
+      }
+
+      // Guardamos data para la pantalla de resultados
+      const processingData = {
+        sourceType,
+        selectedTemplate,
+        fileCount: files.length,
+        results, // [{ fileName, template_id, compiled, result }]
+        when: new Date().toISOString(),
+      }
+      localStorage.setItem("processingData", JSON.stringify(processingData))
+      router.push("/results")
+    } catch (error) {
+      console.error("Error processing:", error)
+      alert("Error al procesar los documentos")
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  // Plantillas para Select
+  const templateItems = useMemo(() => {
+    if (!templates?.length) return null
+    return templates.map((t) => (
+      <SelectItem key={t.id} value={t.id}>
+        {t.name} {t.description ? `— ${t.description}` : ""}
+      </SelectItem>
+    ))
+  }, [templates])
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-background via-sand/5 to-primary/5">
@@ -177,8 +234,7 @@ export default function HomePage() {
                     <div>
                       <p className="text-sm text-blue-800 dark:text-blue-200 font-medium">💡 Consejo</p>
                       <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
-                        Selecciona el tipo de documento que quieres procesar. Por ejemplo: facturas en PDF, emails de
-                        clientes, o mensajes de WhatsApp.
+                        Selecciona el tipo de documento que quieres procesar. Por ahora el flujo automático está optimizado para PDF.
                       </p>
                     </div>
                   </div>
@@ -217,22 +273,6 @@ export default function HomePage() {
                       color:
                         "from-green-500/10 to-green-600/5 border-green-200 hover:border-green-300 dark:border-green-800 dark:hover:border-green-700",
                     },
-                    {
-                      value: "whatsapp",
-                      label: "WhatsApp",
-                      description: "Mensajes de clientes",
-                      icon: "whatsapp",
-                      color:
-                        "from-green-500/10 to-emerald-500/5 border-green-200 hover:border-green-300 dark:border-green-800 dark:hover:border-green-700",
-                    },
-                    {
-                      value: "telegram",
-                      label: "Telegram",
-                      description: "Chats de negocio",
-                      icon: "telegram",
-                      color:
-                        "from-blue-400/10 to-cyan-500/5 border-blue-200 hover:border-blue-300 dark:border-blue-800 dark:hover:border-blue-700",
-                    },
                   ].map((source) => (
                     <motion.div key={source.value} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                       <Button
@@ -260,11 +300,7 @@ export default function HomePage() {
             </Card>
 
             {sourceType === "pdf" && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                transition={{ duration: 0.3 }}
-              >
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} transition={{ duration: 0.3 }}>
                 <Card className="border-sun/30 shadow-lg bg-card dark:bg-card">
                   <CardHeader className="bg-gradient-to-r from-sun/10 to-sun/5 border-b border-sun/20">
                     <CardTitle className="flex items-center gap-3 text-lg text-card-foreground">
@@ -311,10 +347,7 @@ export default function HomePage() {
                               >
                                 <FileText className="w-4 h-4 text-green-600" />
                                 {file.name}
-                                <Badge
-                                  variant="outline"
-                                  className="text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300"
-                                >
+                                <Badge variant="outline" className="text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300">
                                   {(file.size / 1024 / 1024).toFixed(2)} MB
                                 </Badge>
                               </div>
@@ -339,12 +372,7 @@ export default function HomePage() {
                     <div className="ml-2">{isStepComplete(3) && <CheckCircle className="w-5 h-5 text-primary" />}</div>
                   </div>
                   <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => router.push("/templates")}
-                      className="border-sun/30 hover:bg-sun/10 hover:border-sun/50"
-                    >
+                    <Button variant="outline" size="sm" onClick={() => router.push("/templates")} className="border-sun/30 hover:bg-sun/10 hover:border-sun/50">
                       <Settings className="w-4 h-4 mr-2" />
                       Crear Nueva Plantilla
                     </Button>
@@ -356,39 +384,27 @@ export default function HomePage() {
                   <div className="flex items-start gap-3">
                     <FileSpreadsheet className="w-5 h-5 text-indigo-600 mt-0.5" />
                     <div>
-                      <p className="text-sm text-indigo-800 dark:text-indigo-200 font-medium">
-                        📊 ¿Qué es una plantilla?
-                      </p>
+                      <p className="text-sm text-indigo-800 dark:text-indigo-200 font-medium">📊 ¿Qué es una plantilla?</p>
                       <p className="text-sm text-indigo-700 dark:text-indigo-300 mt-1">
-                        Es como una tabla de Excel que define cómo se organizarán tus datos. Puedes usar una existente o
-                        crear la tuya propia.
+                        Es como una tabla de Excel que define cómo se organizarán tus datos. Usa una existente o crea una nueva.
                       </p>
                     </div>
                   </div>
                 </div>
+
                 <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecciona cómo quieres organizar tus datos" />
+                    <SelectValue placeholder={templates.length ? "Selecciona una plantilla" : "Cargando plantillas..."} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="facturacion">📄 Registro de Facturas (Cliente, Fecha, Monto, Estado)</SelectItem>
-                    <SelectItem value="inventario">
-                      📦 Control de Inventario (Producto, Cantidad, Precio, Proveedor)
-                    </SelectItem>
-                    <SelectItem value="clientes">👥 Base de Clientes (Nombre, Email, Teléfono, Dirección)</SelectItem>
-                    <SelectItem value="pedidos">
-                      🛒 Seguimiento de Pedidos (Número, Cliente, Productos, Estado)
-                    </SelectItem>
-                    <SelectItem value="reportes">
-                      📈 Reportes Generales (Fecha, Categoría, Descripción, Valor)
-                    </SelectItem>
+                    {templateItems}
                   </SelectContent>
                 </Select>
               </CardContent>
             </Card>
 
             <Card className="border-primary/30 shadow-xl bg-card dark:bg-card">
-            <CardHeader>
+              <CardHeader>
                 <CardTitle className="flex items-center justify-between text-card-foreground">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-sun/20 rounded-lg">
@@ -410,17 +426,10 @@ export default function HomePage() {
                     </div>
                   </div>
                 )}
-                <motion.div
-                  whileHover={{ scale: isStepComplete(3) ? 1.02 : 1 }}
-                  whileTap={{ scale: isStepComplete(3) ? 0.98 : 1 }}
-                >
+                <motion.div whileHover={{ scale: isStepComplete(3) ? 1.02 : 1 }} whileTap={{ scale: isStepComplete(3) ? 0.98 : 1 }}>
                   <Button
                     onClick={handleProcess}
-                    disabled={
-                      isProcessing ||
-                      !sourceType ||
-                      !selectedTemplate
-                    }
+                    disabled={isProcessing || !sourceType || !selectedTemplate || (sourceType === "pdf" && files.length === 0)}
                     className="w-full h-16 text-xl font-bold bg-gradient-to-r from-primary via-primary-hover to-primary shadow-lg hover:shadow-xl transition-all duration-300 border border-primary/30 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isProcessing ? (
