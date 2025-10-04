@@ -21,13 +21,7 @@ export function MainHeader({ title, showUploadButton = false, onUploadClick }: M
           <h1 className="text-2xl font-bold text-foreground">{title}</h1>
           {showUploadButton && (
             <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}>
-              <Button
-                onClick={onUploadClick}
-                className="bg-primary hover:bg-primary-hover text-primary-foreground gap-2 shadow-md hover:shadow-lg transition-all duration-200"
-              >
-                <Plus className="w-4 h-4" />
-                Subir Documento
-              </Button>
+              
             </motion.div>
           )}
         </div>
