@@ -47,44 +47,16 @@ const mockTemplates: ExcelTemplate[] = [
     id: "1",
     name: "Pedido",
     description: "Plantilla para reportes mensuales de ventas",
-    columns: 5,
+    columns: 3,
     rows: 10,
-    createdAt: "2024-01-15",
-    lastModified: "2024-01-20",
-    headers: ["Cliente", "Fecha", "Producto"],
+    createdAt: "2025-10-03",
+    lastModified: "2025-10-03",
+    headers: ["nombre_del_cliente", "fecha", "descripcion_productos"],
     data: [
-      ["Nombre", "dd/mm/aaaa", "Descripción"],
+      ["Nombre", "dd/mm/aaaa", "pasala a aleman"],
     ],
     status: "active",
-  },
-  {
-    id: "2",
-    name: "Reporte de Ventas",
-    description: "Plantilla para reportes mensuales de ventas",
-    columns: 5,
-    rows: 10,
-    createdAt: "2024-01-15",
-    lastModified: "2024-01-20",
-    headers: ["Cliente", "Fecha", "Producto"],
-    data: [
-      ["Nombre", "dd/mm/aaaa", "Descripción"],
-    ],
-    status: "active",
-  },
-  {
-    id: "3",
-    name: "Reporte de Logistica",
-    description: "Plantilla para reportes mensuales de ventas",
-    columns: 5,
-    rows: 10,
-    createdAt: "2024-01-15",
-    lastModified: "2024-01-20",
-    headers: ["Cliente", "Fecha", "Producto"],
-    data: [
-      ["Nombre", "dd/mm/aaaa", "Descripción"],
-    ],
-    status: "active",
-  },
+  }
 ]
 
 export default function TemplatesPage() {
