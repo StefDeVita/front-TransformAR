@@ -57,11 +57,13 @@ const mockJobs: ProcessingJob[] = [
     id: "2",
     fileName: "pedido-express_farmacia_centro.docx",
     fileType: "document",
-    status: "processing",
-    progress: 65,
-    startTime: "2024-01-20 15:45:00",
-    extractedFields: 8,
-    totalFields: 15,
+    status: "completed",
+    progress: 100,
+    startTime: "2025-07-10 14:30:00",
+    endTime: "2025-07-10 14:32:15",
+    duration: "1m 15s",
+    extractedFields: 2,
+    totalFields: 12,
     template: "Inventario de Productos",
   },
   {
@@ -94,10 +96,12 @@ const mockJobs: ProcessingJob[] = [
     id: "5",
     fileName: "facturas_diciembre_2023.pdf",
     fileType: "pdf",
-    status: "queued",
-    progress: 0,
+    status: "completed",
+    progress: 100,
     startTime: "2024-01-20 16:15:00",
-    extractedFields: 0,
+    endTime: "2024-01-20 13:18:45",
+    duration: "1m 45s",
+    extractedFields: 2,
     totalFields: 25,
     template: "Facturación Clientes",
   },
@@ -122,12 +126,8 @@ const getStatusBadge = (status: string) => {
   switch (status) {
     case "completed":
       return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Completado</Badge>
-    case "processing":
-      return <Badge className="bg-sun text-black hover:bg-sun">Procesando</Badge>
     case "failed":
       return <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Error</Badge>
-    case "queued":
-      return <Badge variant="outline">En Cola</Badge>
     default:
       return null
   }
@@ -168,7 +168,7 @@ export default function ProcessedPage() {
             className="max-w-7xl mx-auto space-y-6"
           >
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               <Card>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
@@ -182,7 +182,6 @@ export default function ProcessedPage() {
                   </div>
                 </CardContent>
               </Card>
-
               <Card>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
@@ -196,21 +195,6 @@ export default function ProcessedPage() {
                   </div>
                 </CardContent>
               </Card>
-
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-sun/20 rounded-lg flex items-center justify-center">
-                      <Activity className="w-5 h-5 text-sun" />
-                    </div>
-                    <div>
-                      <p className="text-xl font-bold">{stats.processing}</p>
-                      <p className="text-xs text-muted-foreground">Procesando</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
               <Card>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
@@ -245,7 +229,6 @@ export default function ProcessedPage() {
                           <SelectItem value="completed">Completados</SelectItem>
                           <SelectItem value="processing">Procesando</SelectItem>
                           <SelectItem value="failed">Con Error</SelectItem>
-                          <SelectItem value="queued">En Cola</SelectItem>
                         </SelectContent>
                       </Select>
                       <Select value={timeFilter} onValueChange={setTimeFilter}>
@@ -308,14 +291,6 @@ export default function ProcessedPage() {
                               <span className="font-medium">Campos:</span>
                               <br />
                               {job.extractedFields}/{job.totalFields} extraídos
-                            </div>
-                            <div>
-                              <span className="font-medium">Progreso:</span>
-                              <br />
-                              <div className="flex items-center gap-2 mt-1">
-                                <Progress value={job.progress} className="flex-1 h-2" />
-                                <span className="text-xs">{job.progress}%</span>
-                              </div>
                             </div>
                           </div>
 

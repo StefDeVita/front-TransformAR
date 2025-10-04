@@ -103,36 +103,6 @@ export default function SettingsPage() {
                 ))}
               </CardContent>
             </Card>
-
-            {/* Processing Settings */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Configuración de Procesamiento</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="auto-process">Procesamiento Automático</Label>
-                    <p className="text-sm text-muted-foreground">Procesar documentos automáticamente al cargarlos</p>
-                  </div>
-                  <Switch id="auto-process" />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="auto-export">Exportación Automática</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Exportar resultados automáticamente después del procesamiento
-                    </p>
-                  </div>
-                  <Switch id="auto-export" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="flex justify-end">
-              <Button className="bg-primary hover:bg-primary/90">Guardar Configuración</Button>
-            </div>
           </motion.div>
         </main>
       </div>
