@@ -616,14 +616,6 @@ function EditTemplateForm({ template, onClose }: { template: ExcelTemplate; onCl
                       <code className="bg-background px-1 rounded">{"{{precio}}"}</code>
                     </p>
                   </div>
-                  <div>
-                    <p className="font-medium mb-1">🧮 Fórmulas Excel:</p>
-                    <p className="text-muted-foreground">
-                      También puede usar fórmulas normales como{" "}
-                      <code className="bg-background px-1 rounded">=SUMA(D2:D10)</code> o{" "}
-                      <code className="bg-background px-1 rounded">=C2*D2</code>
-                    </p>
-                  </div>
                 </div>
               </div>
             </div>

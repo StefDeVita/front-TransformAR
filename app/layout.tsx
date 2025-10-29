@@ -8,7 +8,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "TransformAR - Transformación Inteligente de Documentos",
+  title: "TransformAR - Transformación de Documentos con Integraciones",
   description: "Plataforma para extracción y transformación automatizada de documentos",
   generator: "v0.app",
 }

@@ -150,10 +150,7 @@ export default function ResultsPage() {
                   <Download className="w-4 h-4" />
                   Exportar CSV (todos)
                 </Button>
-                <div className="flex items-center text-sm text-muted-foreground gap-2">
-                  <Info className="w-4 h-4" />
-                  Exporta si el resultado es una <em>lista de objetos</em>. Si no, descarga sólo será posible desde la vista JSON.
-                </div>
+                
               </CardContent>
             </Card>
 
@@ -165,7 +162,7 @@ export default function ResultsPage() {
               <CardContent className="space-y-4">
                 {(processingData.results || []).map((fr, idx) => {
                   const isOpen = expanded.has(idx)
-                  const fileName = fr.fileName || `archivo_${idx + 1}`
+                  const fileName = `archivo_${idx + 1}`
                   const asRows = isArrayOfRecords(fr.result)
                   const sampleRow = asRows ? fr.result[0] : null
                   const headers = sampleRow ? Object.keys(sampleRow) : []
