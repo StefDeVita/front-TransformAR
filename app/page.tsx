@@ -33,6 +33,14 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 export default function HomePage() {
   const router = useRouter()
 
+  // Check authentication on mount
+  useEffect(() => {
+    const token = localStorage.getItem("authToken")
+    if (!token) {
+      router.push("/login")
+    }
+  }, [router])
+
   // Acordeón: 1 = Fuente, 2 = Entrada, 3 = Plantilla
   const [openStep, setOpenStep] = useState<1 | 2 | 3>(1)
 
