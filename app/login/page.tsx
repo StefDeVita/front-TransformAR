@@ -101,7 +101,6 @@ export default function LoginPage() {
             </div>
           </div>
           <h1 className="text-3xl font-bold text-foreground">TransformAR</h1>
-          <p className="text-muted-foreground mt-2">Transformación de Documentos</p>
         </div>
 
         <Card className="border-muted/60 shadow-lg" data-testid="login-card">
