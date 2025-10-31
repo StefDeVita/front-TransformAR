@@ -38,8 +38,9 @@ export default function LoginPage() {
       }
 
       const data = await response.json()
+      console.log(data)
       // Save token to localStorage and cookie
-      const token = data.token || data.access_token
+      const token = data.token || data.access_token || data.authtoken
       localStorage.setItem("authToken", token)
       localStorage.setItem("userEmail", email)
       
