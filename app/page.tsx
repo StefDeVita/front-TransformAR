@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Loader2, Lightbulb, FileText, Mail, Send, MessageSquare } from "lucide-react"
+import { Loader2, Lightbulb, FileText, Mail, Send, MessageSquare, Phone } from "lucide-react"
 
 type TemplateMeta = { id: string; name: string; description?: string | null }
 type GmailMsg = { id: string; from?: string; subject?: string }
@@ -45,7 +45,7 @@ export default function HomePage() {
   const [openStep, setOpenStep] = useState<1 | 2 | 3>(1)
 
   // Fuente
-  const [source, setSource] = useState<"document" | "gmail" | "outlook" | "text">("document")
+  const [source, setSource] = useState<"document" | "gmail" | "outlook" | "text" | "whatsapp" | "telegram">("document")
 
   // Plantillas (último paso)
   const [templates, setTemplates] = useState<TemplateMeta[]>([])
@@ -55,9 +55,11 @@ export default function HomePage() {
   const [files, setFiles] = useState<File[]>([])
   const [freeText, setFreeText] = useState<string>("")
 
-  // Gmail/Outlook
+  // Gmail/Outlook/WhatsApp/Telegram
   const [gmailList, setGmailList] = useState<GmailMsg[]>([])
   const [outlookList, setOutlookList] = useState<OutlookMsg[]>([])
+  const [whatsappList, setWhatsappList] = useState<GmailMsg[]>([])
+  const [telegramList, setTelegramList] = useState<GmailMsg[]>([])
   const [selectedMsgId, setSelectedMsgId] = useState<string>("")
   const [emailDetail, setEmailDetail] = useState<GmailDetail | OutlookDetail | null>(null)
   const [useText, setUseText] = useState<boolean>(true)
@@ -84,7 +86,7 @@ export default function HomePage() {
   }, [])
 
   // Elegir fuente → abrir Paso 2
-  const handlePickSource = (s: "document" | "gmail" | "outlook" | "text") => {
+  const handlePickSource = (s: "document" | "gmail" | "outlook" | "text" | "whatsapp" | "telegram") => {
     setSource(s)
     // limpiar entrada anterior
     setFiles([])
@@ -95,7 +97,7 @@ export default function HomePage() {
     setOpenStep(2)
   }
 
-  // Cargar listas cuando estoy en Paso 2 y la fuente es correo
+  // Cargar listas cuando estoy en Paso 2 y la fuente es correo/mensajería
   useEffect(() => {
     const load = async () => {
       try {
@@ -110,6 +112,14 @@ export default function HomePage() {
           const r = await fetch(`${API_BASE}/input/outlook/messages?limit=10`, { cache: "no-store" })
           const d = await r.json()
           setOutlookList(d.messages || [])
+        } else if (source === "whatsapp") {
+          const r = await fetch(`${API_BASE}/input/whatsapp/messages?limit=10`, { cache: "no-store" })
+          const d = await r.json()
+          setWhatsappList(d.messages || [])
+        } else if (source === "telegram") {
+          const r = await fetch(`${API_BASE}/input/telegram/messages?limit=10`, { cache: "no-store" })
+          const d = await r.json()
+          setTelegramList(d.messages || [])
         }
       } catch (e) {
         console.error(e)
@@ -117,20 +127,26 @@ export default function HomePage() {
         setLoadingList(false)
       }
     }
-    if (openStep === 2 && (source === "gmail" || source === "outlook")) {
+    if (openStep === 2 && (source === "gmail" || source === "outlook" || source === "whatsapp" || source === "telegram")) {
       load()
     }
   }, [openStep, source])
 
-  // Cargar detalle del correo
+  // Cargar detalle del correo/mensaje
   const handleFetchDetail = async (id: string) => {
     try {
       setSelectedMsgId(id)
       setLoadingDetail(true)
-      const endpoint =
-        source === "gmail"
-          ? `${API_BASE}/input/gmail/messages/${id}`
-          : `${API_BASE}/input/outlook/messages/${id}`
+      let endpoint = ""
+      if (source === "gmail") {
+        endpoint = `${API_BASE}/input/gmail/messages/${id}`
+      } else if (source === "outlook") {
+        endpoint = `${API_BASE}/input/outlook/messages/${id}`
+      } else if (source === "whatsapp") {
+        endpoint = `${API_BASE}/input/whatsapp/messages/${id}`
+      } else if (source === "telegram") {
+        endpoint = `${API_BASE}/input/telegram/messages/${id}`
+      }
       const r = await fetch(endpoint, { cache: "no-store" })
       const data = await r.json()
       setEmailDetail(data)
@@ -235,15 +251,21 @@ export default function HomePage() {
         })
       }
 
-      else if (source === "gmail" || source === "outlook") {
-        if (!selectedMsgId) { alert("Elegí un correo."); return }
+      else if (source === "gmail" || source === "outlook" || source === "whatsapp" || source === "telegram") {
+        if (!selectedMsgId) { alert("Elegí un mensaje."); return }
         const body: any = { method: source, template_id: templateId }
         if (source === "gmail") {
           body.gmail = { message_id: selectedMsgId, use_text: useText }
           if (!useText && (emailDetail?.attachments?.length ?? 0) > 0) body.gmail.attachment_index = attachmentIndex
-        } else {
+        } else if (source === "outlook") {
           body.outlook = { message_id: selectedMsgId, use_text: useText }
           if (!useText && (emailDetail?.attachments?.length ?? 0) > 0) body.outlook.attachment_index = attachmentIndex
+        } else if (source === "whatsapp") {
+          body.whatsapp = { message_id: selectedMsgId, use_text: useText }
+          if (!useText && (emailDetail?.attachments?.length ?? 0) > 0) body.whatsapp.attachment_index = attachmentIndex
+        } else if (source === "telegram") {
+          body.telegram = { message_id: selectedMsgId, use_text: useText }
+          if (!useText && (emailDetail?.attachments?.length ?? 0) > 0) body.telegram.attachment_index = attachmentIndex
         }
         const r = await fetch(`${API_BASE}/process`, {
           method: "POST",
@@ -272,7 +294,7 @@ export default function HomePage() {
   const entradaLista = useMemo(() => {
     if (source === "document") return files.length > 0
     if (source === "text") return freeText.trim().length > 0
-    if (source === "gmail" || source === "outlook") return Boolean(selectedMsgId && (useText || (emailDetail?.attachments?.length ?? 0) > 0))
+    if (source === "gmail" || source === "outlook" || source === "whatsapp" || source === "telegram") return Boolean(selectedMsgId && (useText || (emailDetail?.attachments?.length ?? 0) > 0))
     return false
   }, [source, files, freeText, selectedMsgId, emailDetail, useText])
 
@@ -339,6 +361,24 @@ export default function HomePage() {
                       <div>
                         <div className="font-medium">Outlook</div>
                         <div className="text-xs text-muted-foreground">Correos corporativos</div>
+                      </div>
+                    </div>
+                  </button>
+                  <button onClick={()=>handlePickSource("whatsapp")} className={`text-left rounded-xl border p-4 hover:shadow transition ${source==="whatsapp"?"bg-primary/10 border-primary":"bg-card"}`}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-green-200/40 flex items-center justify-center"><MessageSquare className="w-5 h-5 text-green-600" /></div>
+                      <div>
+                        <div className="font-medium">WhatsApp</div>
+                        <div className="text-xs text-muted-foreground">Mensajes de clientes</div>
+                      </div>
+                    </div>
+                  </button>
+                  <button onClick={()=>handlePickSource("telegram")} className={`text-left rounded-xl border p-4 hover:shadow transition ${source==="telegram"?"bg-primary/10 border-primary":"bg-card"}`}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-sky-200/40 flex items-center justify-center"><Phone className="w-5 h-5 text-sky-600" /></div>
+                      <div>
+                        <div className="font-medium">Telegram</div>
+                        <div className="text-xs text-muted-foreground">Chats y mensajes</div>
                       </div>
                     </div>
                   </button>
@@ -476,6 +516,116 @@ export default function HomePage() {
                                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                                   <SelectContent>
                                     {(emailDetail.attachments || []).map((_,i)=>(<SelectItem key={i} value={String(i)}>Adjunto #{i+1}</SelectItem>))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
+                            {useText && (
+                              <ScrollArea className="h-32 rounded border p-2 text-xs whitespace-pre-wrap">
+                                {emailDetail.text?.slice(0,3000) || "(sin texto)"}
+                              </ScrollArea>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {source === "whatsapp" && (
+                    <div className="grid md:grid-cols-2 gap-3">
+                      <div className="border rounded-lg h-56 overflow-auto">
+                        {loadingList ? (
+                          <div className="h-full flex items-center justify-center text-sm text-muted-foreground gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin" /> Cargando mensajes…
+                          </div>
+                        ) : (
+                          (whatsappList || []).map(m => (
+                            <button key={m.id} onClick={()=>handleFetchDetail(m.id)} className={`w-full text-left px-3 py-2 border-b hover:bg-muted ${selectedMsgId===m.id? "bg-muted": ""}`}>
+                              <div className="text-sm font-medium">{m.subject || m.from || "(sin asunto)"}</div>
+                              <div className="text-xs text-muted-foreground">{m.from || ""}</div>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                      <div className="space-y-3">
+                        {loadingDetail ? (
+                          <div className="h-56 flex items-center justify-center text-sm text-muted-foreground gap-2 border rounded-lg">
+                            <Loader2 className="w-4 h-4 animate-spin" /> Cargando contenido…
+                          </div>
+                        ) : !emailDetail ? (
+                          <div className="text-sm text-muted-foreground">Seleccioná un mensaje…</div>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-4 text-sm">
+                              <label className="flex items-center gap-2">
+                                <input type="radio" checked={useText} onChange={()=>setUseText(true)} /> Texto
+                              </label>
+                              <label className="flex items-center gap-2">
+                                <input type="radio" checked={!useText} onChange={()=>setUseText(false)} /> Multimedia
+                              </label>
+                            </div>
+                            {!useText && (
+                              <div>
+                                <Label className="text-sm">Archivo</Label>
+                                <Select value={String(attachmentIndex)} onValueChange={(v)=> setAttachmentIndex(parseInt(v))}>
+                                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    {(emailDetail.attachments || []).map((_,i)=>(<SelectItem key={i} value={String(i)}>Archivo #{i+1}</SelectItem>))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
+                            {useText && (
+                              <ScrollArea className="h-32 rounded border p-2 text-xs whitespace-pre-wrap">
+                                {emailDetail.text?.slice(0,3000) || "(sin texto)"}
+                              </ScrollArea>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {source === "telegram" && (
+                    <div className="grid md:grid-cols-2 gap-3">
+                      <div className="border rounded-lg h-56 overflow-auto">
+                        {loadingList ? (
+                          <div className="h-full flex items-center justify-center text-sm text-muted-foreground gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin" /> Cargando mensajes…
+                          </div>
+                        ) : (
+                          (telegramList || []).map(m => (
+                            <button key={m.id} onClick={()=>handleFetchDetail(m.id)} className={`w-full text-left px-3 py-2 border-b hover:bg-muted ${selectedMsgId===m.id? "bg-muted": ""}`}>
+                              <div className="text-sm font-medium">{m.subject || m.from || "(sin asunto)"}</div>
+                              <div className="text-xs text-muted-foreground">{m.from || ""}</div>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                      <div className="space-y-3">
+                        {loadingDetail ? (
+                          <div className="h-56 flex items-center justify-center text-sm text-muted-foreground gap-2 border rounded-lg">
+                            <Loader2 className="w-4 h-4 animate-spin" /> Cargando contenido…
+                          </div>
+                        ) : !emailDetail ? (
+                          <div className="text-sm text-muted-foreground">Seleccioná un mensaje…</div>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-4 text-sm">
+                              <label className="flex items-center gap-2">
+                                <input type="radio" checked={useText} onChange={()=>setUseText(true)} /> Texto
+                              </label>
+                              <label className="flex items-center gap-2">
+                                <input type="radio" checked={!useText} onChange={()=>setUseText(false)} /> Multimedia
+                              </label>
+                            </div>
+                            {!useText && (
+                              <div>
+                                <Label className="text-sm">Archivo</Label>
+                                <Select value={String(attachmentIndex)} onValueChange={(v)=> setAttachmentIndex(parseInt(v))}>
+                                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    {(emailDetail.attachments || []).map((_,i)=>(<SelectItem key={i} value={String(i)}>Archivo #{i+1}</SelectItem>))}
                                   </SelectContent>
                                 </Select>
                               </div>

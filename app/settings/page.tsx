@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import { SidebarNavigation } from "@/components/sidebar-navigation"
 import { MainHeader } from "@/components/main-header"
@@ -9,16 +10,30 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import { Settings, Mail, MessageSquare, Phone, CheckCircle, AlertCircle } from "lucide-react"
+import { Settings, Mail, MessageSquare, Phone, CheckCircle, AlertCircle, Loader2 } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
+
+type IntegrationStatus = {
+  id: string
+  name: string
+  icon: React.ReactNode
+  connected: boolean
+  description: string
+  loading?: boolean
+}
 
 export default function SettingsPage() {
-  const integrations = [
+  const { toast } = useToast()
+  const [integrations, setIntegrations] = useState<IntegrationStatus[]>([
     {
       id: "gmail",
       name: "Gmail",
       icon: <Mail className="w-6 h-6" />,
-      connected: true,
+      connected: false,
       description: "Conectar con tu cuenta de Gmail para procesar correos",
+      loading: false,
     },
     {
       id: "outlook",
@@ -26,13 +41,15 @@ export default function SettingsPage() {
       icon: <Mail className="w-6 h-6" />,
       connected: false,
       description: "Conectar con tu cuenta de Outlook para procesar correos",
+      loading: false,
     },
     {
       id: "whatsapp",
       name: "WhatsApp Business",
       icon: <MessageSquare className="w-6 h-6" />,
-      connected: true,
+      connected: false,
       description: "Conectar con WhatsApp Business API",
+      loading: false,
     },
     {
       id: "telegram",
@@ -40,8 +57,123 @@ export default function SettingsPage() {
       icon: <Phone className="w-6 h-6" />,
       connected: false,
       description: "Conectar con Telegram Bot API",
+      loading: false,
     },
-  ]
+  ])
+
+  // Cargar el estado de las conexiones al montar el componente
+  useEffect(() => {
+    loadConnectionStatuses()
+  }, [])
+
+  const loadConnectionStatuses = async () => {
+    try {
+      // Obtener el token de autenticación
+      const token = localStorage.getItem("authToken")
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      }
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`
+      }
+
+      // Cargar estado de cada integración
+      const statusPromises = integrations.map(async (integration) => {
+        try {
+          const response = await fetch(`${API_BASE}/integration/${integration.id}/status`, {
+            headers,
+            cache: "no-store",
+          })
+          if (response.ok) {
+            const data = await response.json()
+            return { id: integration.id, connected: data.connected || false }
+          }
+        } catch (error) {
+          console.error(`Error loading ${integration.id} status:`, error)
+        }
+        return { id: integration.id, connected: false }
+      })
+
+      const statuses = await Promise.all(statusPromises)
+
+      // Actualizar el estado de las integraciones
+      setIntegrations((prev) =>
+        prev.map((integration) => {
+          const status = statuses.find((s) => s.id === integration.id)
+          return status ? { ...integration, connected: status.connected } : integration
+        })
+      )
+    } catch (error) {
+      console.error("Error loading connection statuses:", error)
+    }
+  }
+
+  const handleToggleConnection = async (integrationId: string) => {
+    const integration = integrations.find((i) => i.id === integrationId)
+    if (!integration) return
+
+    // Marcar como loading
+    setIntegrations((prev) =>
+      prev.map((i) => (i.id === integrationId ? { ...i, loading: true } : i))
+    )
+
+    try {
+      const token = localStorage.getItem("authToken")
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      }
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`
+      }
+
+      const action = integration.connected ? "disconnect" : "connect"
+      const response = await fetch(`${API_BASE}/integration/${integrationId}/${action}`, {
+        method: "POST",
+        headers,
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.detail || `Error al ${action === "connect" ? "conectar" : "desconectar"}`)
+      }
+
+      const data = await response.json()
+
+      // Si es conectar, mostrar información adicional
+      if (action === "connect" && data.qr_code) {
+        toast({
+          title: "Escanea el código QR",
+          description: "Por favor escanea el código QR con tu aplicación para completar la conexión",
+          duration: 5000,
+        })
+        // Aquí podrías mostrar el QR code en un modal
+        console.log("QR Code:", data.qr_code)
+      }
+
+      // Actualizar el estado
+      setIntegrations((prev) =>
+        prev.map((i) =>
+          i.id === integrationId ? { ...i, connected: !integration.connected, loading: false } : i
+        )
+      )
+
+      toast({
+        title: action === "connect" ? "Conectado" : "Desconectado",
+        description: `${integration.name} ${action === "connect" ? "conectado" : "desconectado"} exitosamente`,
+      })
+    } catch (error: any) {
+      console.error(`Error toggling ${integrationId}:`, error)
+      toast({
+        title: "Error",
+        description: error.message || "Error al procesar la solicitud",
+        variant: "destructive",
+      })
+      // Remover el loading
+      setIntegrations((prev) =>
+        prev.map((i) => (i.id === integrationId ? { ...i, loading: false } : i))
+      )
+    }
+  }
 
   return (
     <div className="flex h-screen bg-background">
@@ -80,7 +212,7 @@ export default function SettingsPage() {
 
                     <div className="flex items-center gap-3">
                       {integration.connected ? (
-                        <Badge className="bg-green-100 text-green-800 border-green-200">
+                        <Badge className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400">
                           <CheckCircle className="w-3 h-3 mr-1" />
                           Conectado
                         </Badge>
@@ -95,8 +227,17 @@ export default function SettingsPage() {
                         variant={integration.connected ? "outline" : "default"}
                         size="sm"
                         className={integration.connected ? "" : "bg-primary hover:bg-primary/90"}
+                        onClick={() => handleToggleConnection(integration.id)}
+                        disabled={integration.loading}
                       >
-                        {integration.connected ? "Desconectar" : "Conectar"}
+                        {integration.loading ? (
+                          <>
+                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                            Procesando...
+                          </>
+                        ) : (
+                          <>{integration.connected ? "Desconectar" : "Conectar"}</>
+                        )}
                       </Button>
                     </div>
                   </div>
