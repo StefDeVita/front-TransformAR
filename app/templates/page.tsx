@@ -59,6 +59,21 @@ export default function TemplatesPage() {
     loadTemplates()
   }, [])
 
+  const normalizeTemplate = (template: any): ExcelTemplate => {
+    return {
+      id: template.id || "",
+      name: template.name || "Sin nombre",
+      description: template.description || "",
+      columns: template.columns || 0,
+      rows: template.rows || 0,
+      createdAt: template.createdAt || new Date().toISOString().split("T")[0],
+      lastModified: template.lastModified || new Date().toISOString().split("T")[0],
+      headers: Array.isArray(template.headers) ? template.headers : [],
+      data: Array.isArray(template.data) ? template.data : [],
+      status: template.status === "active" || template.status === "draft" ? template.status : "draft",
+    }
+  }
+
   const loadTemplates = async () => {
     try {
       setLoading(true)
@@ -76,7 +91,8 @@ export default function TemplatesPage() {
       })
       if (response.ok) {
         const data = await response.json()
-        setTemplates(Array.isArray(data) ? data : [])
+        const normalizedTemplates = Array.isArray(data) ? data.map(normalizeTemplate) : []
+        setTemplates(normalizedTemplates)
       }
     } catch (error) {
       console.error("Error loading templates:", error)
@@ -166,7 +182,7 @@ export default function TemplatesPage() {
       }
 
       const createdTemplate = await response.json()
-      setTemplates([...templates, createdTemplate])
+      setTemplates([...templates, normalizeTemplate(createdTemplate)])
       toast({
         title: "Plantilla duplicada",
         description: "La plantilla se duplicó correctamente",
@@ -329,16 +345,16 @@ export default function TemplatesPage() {
                               <div className="space-y-2 mb-4 bg-muted/30 p-3 rounded-lg">
                                 <div className="flex justify-between text-xs">
                                   <span className="text-muted-foreground">Columnas de datos:</span>
-                                  <span className="font-medium text-primary">{template.columns}</span>
+                                  <span className="font-medium text-primary">{template.columns || 0}</span>
                                 </div>
                                 <div className="flex justify-between text-xs">
                                   <span className="text-muted-foreground">Campos configurados:</span>
-                                  <span className="font-medium text-primary">{template.headers.length}</span>
+                                  <span className="font-medium text-primary">{template.headers?.length || 0}</span>
                                 </div>
                                 <div className="flex justify-between text-xs">
                                   <span className="text-muted-foreground">Última modificación:</span>
                                   <span className="font-medium">
-                                    {new Date(template.lastModified).toLocaleDateString("es-AR")}
+                                    {template.lastModified ? new Date(template.lastModified).toLocaleDateString("es-AR") : "N/A"}
                                   </span>
                                 </div>
                               </div>
@@ -593,11 +609,11 @@ function CreateTemplateForm({ onClose, onSuccess }: { onClose: () => void; onSuc
 
 function EditTemplateForm({ template, onClose, onSuccess }: { template: ExcelTemplate; onClose: () => void; onSuccess: () => void }) {
   const { toast } = useToast()
-  const [headers, setHeaders] = useState<string[]>(template.headers)
-  const [data, setData] = useState<string[][]>(template.data)
+  const [headers, setHeaders] = useState<string[]>(template.headers || [])
+  const [data, setData] = useState<string[][]>(template.data || [])
   const [templateInfo, setTemplateInfo] = useState({
-    name: template.name,
-    description: template.description,
+    name: template.name || "",
+    description: template.description || "",
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -872,7 +888,7 @@ function EditTemplateForm({ template, onClose, onSuccess }: { template: ExcelTem
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Campos mapeados:</span>
                   <span className="text-sm font-medium">
-                    {data.flat().filter((cell) => cell.includes("{{")).length}
+                    {data.flat().filter((cell) => cell && typeof cell === 'string' && cell.includes("{{")).length}
                   </span>
                 </div>
               </CardContent>
