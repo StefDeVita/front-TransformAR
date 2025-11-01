@@ -178,10 +178,16 @@ export default function SettingsPage() {
 
       const action = integration.connected ? "disconnect" : "connect"
       const method = integration.connected ? "DELETE" : "POST"
-      const response = await fetch(`${API_BASE}/integration/${integrationId}/${action}`, {
+      const url = `${API_BASE}/integration/${integrationId}/${action}`
+
+      console.log(`Making ${method} request to:`, url)
+
+      const response = await fetch(url, {
         method: method,
         headers,
       })
+
+      console.log(`Response status for ${integrationId}:`, response.status, response.statusText)
 
       if (!response.ok) {
         let errorMessage = `Error al ${action === "connect" ? "conectar" : "desconectar"}`
@@ -197,27 +203,37 @@ export default function SettingsPage() {
       // Intentar parsear JSON solo si hay contenido
       let data = null
       const contentType = response.headers.get("content-type")
+      console.log(`Content-Type for ${integrationId}:`, contentType)
+
       if (contentType && contentType.includes("application/json")) {
         try {
           data = await response.json()
+          console.log(`Response data for ${integrationId} ${action}:`, data)
         } catch (e) {
+          console.error("Error parsing JSON response:", e)
           // No hay JSON en la respuesta, continuar sin data
         }
+      } else {
+        console.log(`No JSON content-type for ${integrationId}, skipping JSON parse`)
       }
 
       // Si es conectar y hay authorization_url (Gmail/Outlook OAuth)
       if (action === "connect" && data?.authorization_url) {
+        console.log(`Redirecting to OAuth URL for ${integrationId}:`, data.authorization_url)
+
+        // Guardar el ID de integración para saber cuál se estaba conectando
+        localStorage.setItem("pending_integration", integrationId)
+
         toast({
           title: "Redirigiendo...",
           description: `Serás redirigido a ${integration.name} para autorizar la conexión`,
-          duration: 3000,
+          duration: 2000,
         })
-        // Guardar el ID de integración para saber cuál se estaba conectando
-        localStorage.setItem("pending_integration", integrationId)
-        // Redirigir al usuario a la URL de autorización OAuth
-        setTimeout(() => {
-          window.location.href = data.authorization_url
-        }, 1000)
+
+        // Redirigir al usuario a la URL de autorización OAuth inmediatamente
+        window.location.href = data.authorization_url
+
+        // No continuar ejecutando código después de la redirección
         return
       }
 
