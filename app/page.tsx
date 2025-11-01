@@ -23,7 +23,7 @@ type WhatsAppMsg = {
   sender: { phone: string; name: string }
   timestamp: string
   type: string
-  content?: { text: string }
+  content?: { text: string; caption?: string }
   attachment?: {
     type: string
     filename: string
@@ -33,15 +33,27 @@ type WhatsAppMsg = {
 }
 type TelegramMsg = {
   id: string
-  sender: { phone: string; name: string }
-  timestamp: string
+  from?: { username?: string }
+  text?: string
   type: string
-  content?: { text: string }
-  attachment?: {
-    type: string
-    filename: string
-    mime_type: string
-    id: string
+  document?: {
+    file_id: string
+    file_name: string
+    file_size: number
+  }
+  photo?: {
+    file_id: string
+    file_size: number
+  }
+  video?: {
+    file_id: string
+    file_name?: string
+    file_size: number
+  }
+  audio?: {
+    file_id: string
+    file_name?: string
+    file_size: number
   }
 }
 type GmailDetail = { text: string; attachments: string[] }
@@ -57,11 +69,24 @@ type WhatsAppDetail = {
 }
 type TelegramDetail = {
   text?: string
-  attachment?: {
-    type: string
-    filename: string
-    mime_type: string
-    id: string
+  document?: {
+    file_id: string
+    file_name: string
+    file_size: number
+  }
+  photo?: {
+    file_id: string
+    file_size: number
+  }
+  video?: {
+    file_id: string
+    file_name?: string
+    file_size: number
+  }
+  audio?: {
+    file_id: string
+    file_name?: string
+    file_size: number
   }
 }
 
@@ -108,6 +133,7 @@ export default function HomePage() {
   const [emailDetail, setEmailDetail] = useState<GmailDetail | OutlookDetail | WhatsAppDetail | TelegramDetail | null>(null)
   const [useText, setUseText] = useState<boolean>(true)
   const [attachmentIndex, setAttachmentIndex] = useState<number>(0)
+  const [downloadedFile, setDownloadedFile] = useState<{ blob: Blob; filename: string } | null>(null)
 
   // Spinners
   const [loadingList, setLoadingList] = useState<boolean>(false)
@@ -212,11 +238,44 @@ export default function HomePage() {
     }
   }, [openStep, source])
 
+  // Descargar archivo de WhatsApp
+  const downloadWhatsAppMedia = async (mediaId: string, filename: string, token: string | null) => {
+    try {
+      const headers: HeadersInit = {}
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`
+      }
+      const response = await fetch(`${API_BASE}/input/whatsapp/media/${mediaId}`, { headers })
+      if (!response.ok) throw new Error("Error descargando archivo de WhatsApp")
+      const blob = await response.blob()
+      setDownloadedFile({ blob, filename })
+    } catch (e) {
+      console.error("Error descargando archivo de WhatsApp:", e)
+    }
+  }
+
+  // Descargar archivo de Telegram
+  const downloadTelegramFile = async (fileId: string, filename: string, token: string | null) => {
+    try {
+      const headers: HeadersInit = {}
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`
+      }
+      const response = await fetch(`${API_BASE}/input/telegram/file/${fileId}`, { headers })
+      if (!response.ok) throw new Error("Error descargando archivo de Telegram")
+      const blob = await response.blob()
+      setDownloadedFile({ blob, filename })
+    } catch (e) {
+      console.error("Error descargando archivo de Telegram:", e)
+    }
+  }
+
   // Cargar detalle del correo/mensaje
   const handleFetchDetail = async (id: string) => {
     try {
       setSelectedMsgId(id)
       setLoadingDetail(true)
+      setDownloadedFile(null)
 
       // Obtener el token de autenticación
       const token = localStorage.getItem("authToken")
@@ -245,30 +304,50 @@ export default function HomePage() {
       const data = await r.json()
       setEmailDetail(data)
 
-      // Auto-seleccionar según el contenido disponible
-      if (source === "whatsapp" || source === "telegram") {
-        const detail = data as WhatsAppDetail | TelegramDetail
-        // Si solo hay adjunto (sin texto), seleccionar archivo
+      // Auto-seleccionar según el contenido disponible y descargar archivo si es necesario
+      let shouldUseText = true
+      if (source === "whatsapp") {
+        const detail = data as WhatsAppDetail
+        // Si solo hay adjunto (sin texto), seleccionar archivo y descargarlo
         if (detail.attachment && !detail.text) {
-          setUseText(false)
+          shouldUseText = false
+          await downloadWhatsAppMedia(detail.attachment.id, detail.attachment.filename, token)
         }
         // Si solo hay texto (sin adjunto), seleccionar texto
         else if (detail.text && !detail.attachment) {
-          setUseText(true)
+          shouldUseText = true
         }
-        // Si hay ambos, default a archivo (más común en WhatsApp/Telegram)
+        // Si hay ambos, default a archivo (más común en WhatsApp)
         else if (detail.text && detail.attachment) {
-          setUseText(false)
+          shouldUseText = false
+          await downloadWhatsAppMedia(detail.attachment.id, detail.attachment.filename, token)
         }
-        // Si no hay nada, default a true
-        else {
-          setUseText(true)
+      } else if (source === "telegram") {
+        const detail = data as TelegramDetail
+        // Obtener el file_id del tipo de archivo disponible
+        const fileId = detail.document?.file_id || detail.photo?.file_id || detail.video?.file_id || detail.audio?.file_id
+        const fileName = detail.document?.file_name || detail.video?.file_name || detail.audio?.file_name || "file"
+
+        // Si solo hay adjunto (sin texto), seleccionar archivo y descargarlo
+        if (fileId && !detail.text) {
+          shouldUseText = false
+          await downloadTelegramFile(fileId, fileName, token)
+        }
+        // Si solo hay texto (sin adjunto), seleccionar texto
+        else if (detail.text && !fileId) {
+          shouldUseText = true
+        }
+        // Si hay ambos, default a archivo
+        else if (detail.text && fileId) {
+          shouldUseText = false
+          await downloadTelegramFile(fileId, fileName, token)
         }
       } else {
         // Gmail/Outlook: default a texto si existe
-        setUseText(Boolean((data as any).text))
+        shouldUseText = Boolean((data as any).text)
       }
 
+      setUseText(shouldUseText)
       setAttachmentIndex(0)
       // si ya hay detalle, abrimos Paso 3 (plantilla)
       setOpenStep(3)
@@ -387,7 +466,7 @@ export default function HomePage() {
         })
       }
 
-      else if (source === "gmail" || source === "outlook" || source === "whatsapp" || source === "telegram") {
+      else if (source === "gmail" || source === "outlook") {
         if (!selectedMsgId) { alert("Elegí un mensaje."); return }
         const body: any = { method: source, template_id: templateId }
         if (source === "gmail") {
@@ -396,12 +475,6 @@ export default function HomePage() {
         } else if (source === "outlook") {
           body.outlook = { message_id: selectedMsgId, use_text: useText }
           if (!useText && (emailDetail?.attachments?.length ?? 0) > 0) body.outlook.attachment_index = attachmentIndex
-        } else if (source === "whatsapp") {
-          // WhatsApp solo tiene un attachment por mensaje, no necesita índice
-          body.whatsapp = { message_id: selectedMsgId, use_text: useText }
-        } else if (source === "telegram") {
-          // Telegram solo tiene un attachment por mensaje, no necesita índice
-          body.telegram = { message_id: selectedMsgId, use_text: useText }
         }
         const headersWithContentType = {
           ...headers,
@@ -425,6 +498,67 @@ export default function HomePage() {
         })
       }
 
+      else if (source === "whatsapp" || source === "telegram") {
+        if (!selectedMsgId) { alert("Elegí un mensaje."); return }
+
+        // Si se seleccionó usar archivo y existe el archivo descargado, usar /process/document
+        if (!useText && downloadedFile) {
+          const fd = new FormData()
+          fd.append("template_id", templateId)
+          // Convertir Blob a File
+          const file = new File([downloadedFile.blob], downloadedFile.filename, { type: downloadedFile.blob.type })
+          fd.append("file", file)
+
+          const r = await fetch(`${API_BASE}/process/document`, {
+            method: "POST",
+            headers,
+            body: fd
+          })
+          if (!r.ok) throw new Error(await r.text())
+          const d = await r.json()
+          goToResults({
+            sourceType: source,
+            selectedTemplate: templateId,
+            fileName: downloadedFile.filename,
+            compiled: d.compiled,
+            result: d.result,
+            fileCount: 1,
+          })
+        }
+        // Si se seleccionó usar texto, enviar vía /process con message_id
+        else if (useText) {
+          const body: any = { method: source, template_id: templateId }
+          if (source === "whatsapp") {
+            body.whatsapp = { message_id: selectedMsgId, use_text: true }
+          } else if (source === "telegram") {
+            body.telegram = { message_id: selectedMsgId, use_text: true }
+          }
+          const headersWithContentType = {
+            ...headers,
+            "Content-Type": "application/json",
+            "ngrok-skip-browser-warning": "true"
+          }
+          const r = await fetch(`${API_BASE}/process`, {
+            method: "POST",
+            headers: headersWithContentType,
+            body: JSON.stringify(body)
+          })
+          if (!r.ok) throw new Error(await r.text())
+          const d = await r.json()
+          goToResults({
+            sourceType: source,
+            selectedTemplate: templateId,
+            fileName: selectedMsgId,
+            compiled: d.compiled,
+            result: d.result,
+            fileCount: 1,
+          })
+        } else {
+          alert("No hay archivo descargado para procesar.")
+          return
+        }
+      }
+
     } catch (e: any) {
       alert("Error: " + e.message)
     } finally {
@@ -439,12 +573,11 @@ export default function HomePage() {
       return Boolean(selectedMsgId && ((useText && emailDetail?.text) || (!useText && (emailDetail?.attachments?.length ?? 0) > 0)))
     }
     if (source === "whatsapp" || source === "telegram") {
-      const detail = emailDetail as WhatsAppDetail | TelegramDetail | null
-      // Verificar que el contenido seleccionado esté disponible
-      return Boolean(selectedMsgId && ((useText && detail?.text) || (!useText && detail?.attachment)))
+      // Para WhatsApp/Telegram: verificar que tengamos texto o archivo descargado
+      return Boolean(selectedMsgId && ((useText && emailDetail?.text) || (!useText && downloadedFile)))
     }
     return false
-  }, [source, files, freeText, selectedMsgId, emailDetail, useText])
+  }, [source, files, freeText, selectedMsgId, emailDetail, useText, downloadedFile])
 
   const puedeTransformar = templateId && entradaLista
 
@@ -715,7 +848,15 @@ export default function HomePage() {
                                   <input type="radio" checked={useText} onChange={()=>setUseText(true)} /> Texto
                                 </label>
                                 <label className="flex items-center gap-2">
-                                  <input type="radio" checked={!useText} onChange={()=>setUseText(false)} /> Archivo
+                                  <input type="radio" checked={!useText} onChange={async ()=> {
+                                    setUseText(false)
+                                    // Descargar el archivo si no está descargado
+                                    const detail = emailDetail as WhatsAppDetail
+                                    if (!downloadedFile && detail.attachment) {
+                                      const token = localStorage.getItem("authToken")
+                                      await downloadWhatsAppMedia(detail.attachment.id, detail.attachment.filename, token)
+                                    }
+                                  }} /> Archivo
                                 </label>
                               </div>
                             )}
@@ -728,9 +869,11 @@ export default function HomePage() {
                                 <div className="text-xs text-muted-foreground">
                                   <strong>Tipo:</strong> {(emailDetail as WhatsAppDetail).attachment?.mime_type}
                                 </div>
-                                <div className="text-xs text-green-600 mt-2">
-                                  ✓ Listo para procesar
-                                </div>
+                                {downloadedFile && (
+                                  <div className="text-xs text-green-600 mt-2">
+                                    ✓ Archivo descargado y listo para procesar
+                                  </div>
+                                )}
                               </div>
                             )}
                             {useText && emailDetail.text && (
@@ -761,16 +904,18 @@ export default function HomePage() {
                             <Loader2 className="w-4 h-4 animate-spin" /> Cargando mensajes…
                           </div>
                         ) : (
-                          (telegramList || []).map(m => (
-                            <button key={m.id} onClick={()=>handleFetchDetail(m.id)} className={`w-full text-left px-3 py-2 border-b hover:bg-muted ${selectedMsgId===m.id? "bg-muted": ""}`}>
-                              <div className="text-sm font-medium">
-                                {m.type === "text" ? (m.content?.text?.slice(0, 50) || "(mensaje de texto)") : m.attachment?.filename || `(${m.type})`}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {m.sender.name || m.sender.phone} • {new Date(parseInt(m.timestamp) * 1000).toLocaleString()}
-                              </div>
-                            </button>
-                          ))
+                          (telegramList || []).map(m => {
+                            const fileName = m.document?.file_name || m.video?.file_name || m.audio?.file_name || null
+                            const displayText = m.type === "text" ? (m.text?.slice(0, 50) || "(mensaje de texto)") : fileName || `(${m.type})`
+                            const senderName = m.from?.username || "Usuario"
+
+                            return (
+                              <button key={m.id} onClick={()=>handleFetchDetail(m.id)} className={`w-full text-left px-3 py-2 border-b hover:bg-muted ${selectedMsgId===m.id? "bg-muted": ""}`}>
+                                <div className="text-sm font-medium">{displayText}</div>
+                                <div className="text-xs text-muted-foreground">{senderName}</div>
+                              </button>
+                            )
+                          })
                         )}
                       </div>
                       <div className="space-y-3">
@@ -782,45 +927,65 @@ export default function HomePage() {
                           <div className="text-sm text-muted-foreground">Seleccioná un mensaje…</div>
                         ) : (
                           <>
-                            {/* Solo mostrar opciones si hay tanto texto como archivo */}
-                            {emailDetail.text && (emailDetail as TelegramDetail).attachment && (
-                              <div className="flex items-center gap-4 text-sm">
-                                <label className="flex items-center gap-2">
-                                  <input type="radio" checked={useText} onChange={()=>setUseText(true)} /> Texto
-                                </label>
-                                <label className="flex items-center gap-2">
-                                  <input type="radio" checked={!useText} onChange={()=>setUseText(false)} /> Archivo
-                                </label>
-                              </div>
-                            )}
-                            {!useText && (emailDetail as TelegramDetail).attachment && (
-                              <div className="p-3 border rounded-lg bg-muted/30">
-                                <div className="text-sm font-medium">📎 Archivo adjunto seleccionado</div>
-                                <div className="text-xs text-muted-foreground mt-1">
-                                  <strong>Nombre:</strong> {(emailDetail as TelegramDetail).attachment?.filename}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  <strong>Tipo:</strong> {(emailDetail as TelegramDetail).attachment?.mime_type}
-                                </div>
-                                <div className="text-xs text-green-600 mt-2">
-                                  ✓ Listo para procesar
-                                </div>
-                              </div>
-                            )}
-                            {useText && emailDetail.text && (
-                              <div>
-                                <div className="text-sm font-medium mb-2">📝 Texto seleccionado</div>
-                                <ScrollArea className="h-32 rounded border p-2 text-xs whitespace-pre-wrap bg-muted/20">
-                                  {emailDetail.text?.slice(0,3000) || "(sin texto)"}
-                                </ScrollArea>
-                                <div className="text-xs text-green-600 mt-2">
-                                  ✓ Listo para procesar
-                                </div>
-                              </div>
-                            )}
-                            {!emailDetail.text && !(emailDetail as TelegramDetail).attachment && (
-                              <div className="text-sm text-muted-foreground">No hay contenido disponible</div>
-                            )}
+                            {(() => {
+                              const detail = emailDetail as TelegramDetail
+                              const hasFile = detail.document || detail.photo || detail.video || detail.audio
+                              const fileName = detail.document?.file_name || detail.video?.file_name || detail.audio?.file_name || "Archivo"
+                              const fileType = detail.document ? "Documento" : detail.photo ? "Foto" : detail.video ? "Video" : detail.audio ? "Audio" : ""
+
+                              return (
+                                <>
+                                  {/* Solo mostrar opciones si hay tanto texto como archivo */}
+                                  {detail.text && hasFile && (
+                                    <div className="flex items-center gap-4 text-sm">
+                                      <label className="flex items-center gap-2">
+                                        <input type="radio" checked={useText} onChange={()=>setUseText(true)} /> Texto
+                                      </label>
+                                      <label className="flex items-center gap-2">
+                                        <input type="radio" checked={!useText} onChange={async ()=> {
+                                          setUseText(false)
+                                          // Descargar el archivo si no está descargado
+                                          if (!downloadedFile && hasFile) {
+                                            const fileId = detail.document?.file_id || detail.photo?.file_id || detail.video?.file_id || detail.audio?.file_id
+                                            if (fileId) {
+                                              const token = localStorage.getItem("authToken")
+                                              await downloadTelegramFile(fileId, fileName, token)
+                                            }
+                                          }
+                                        }} /> Archivo
+                                      </label>
+                                    </div>
+                                  )}
+                                  {!useText && hasFile && (
+                                    <div className="p-3 border rounded-lg bg-muted/30">
+                                      <div className="text-sm font-medium">📎 {fileType} seleccionado</div>
+                                      <div className="text-xs text-muted-foreground mt-1">
+                                        <strong>Nombre:</strong> {fileName}
+                                      </div>
+                                      {downloadedFile && (
+                                        <div className="text-xs text-green-600 mt-2">
+                                          ✓ Archivo descargado y listo para procesar
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                  {useText && detail.text && (
+                                    <div>
+                                      <div className="text-sm font-medium mb-2">📝 Texto seleccionado</div>
+                                      <ScrollArea className="h-32 rounded border p-2 text-xs whitespace-pre-wrap bg-muted/20">
+                                        {detail.text?.slice(0,3000) || "(sin texto)"}
+                                      </ScrollArea>
+                                      <div className="text-xs text-green-600 mt-2">
+                                        ✓ Listo para procesar
+                                      </div>
+                                    </div>
+                                  )}
+                                  {!detail.text && !hasFile && (
+                                    <div className="text-sm text-muted-foreground">No hay contenido disponible</div>
+                                  )}
+                                </>
+                              )
+                            })()}
                           </>
                         )}
                       </div>
