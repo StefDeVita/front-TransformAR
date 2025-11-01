@@ -10,7 +10,9 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import { Settings, Mail, MessageSquare, Phone, CheckCircle, AlertCircle, Loader2 } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { Settings, Mail, MessageSquare, Phone, CheckCircle, AlertCircle, Loader2, QrCode } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
@@ -33,6 +35,18 @@ export default function SettingsPage() {
   }, [])
 
   const [loadingStatuses, setLoadingStatuses] = useState(true)
+
+  // Estados para diálogos de WhatsApp y Telegram
+  const [whatsappDialogOpen, setWhatsappDialogOpen] = useState(false)
+  const [telegramDialogOpen, setTelegramDialogOpen] = useState(false)
+  const [qrCodeDialogOpen, setQrCodeDialogOpen] = useState(false)
+
+  // Datos de conexión
+  const [whatsappPhone, setWhatsappPhone] = useState("")
+  const [telegramBotToken, setTelegramBotToken] = useState("")
+  const [qrCodeData, setQrCodeData] = useState("")
+  const [connectingIntegration, setConnectingIntegration] = useState<string>("")
+
   const [integrations, setIntegrations] = useState<IntegrationStatus[]>([
     {
       id: "gmail",
@@ -173,6 +187,18 @@ export default function SettingsPage() {
     const integration = integrations.find((i) => i.id === integrationId)
     if (!integration) return
 
+    // Si es WhatsApp o Telegram y no está conectado, abrir diálogo para capturar datos
+    if (!integration.connected) {
+      if (integrationId === "whatsapp") {
+        setWhatsappDialogOpen(true)
+        return
+      } else if (integrationId === "telegram") {
+        setTelegramDialogOpen(true)
+        return
+      }
+    }
+
+    // Para desconectar o para Gmail/Outlook, proceder normalmente
     // Marcar como loading
     setIntegrations((prev) =>
       prev.map((i) => (i.id === integrationId ? { ...i, loading: true } : i))
@@ -284,6 +310,134 @@ export default function SettingsPage() {
     }
   }
 
+  // Conectar WhatsApp con número de teléfono
+  const handleConnectWhatsApp = async () => {
+    if (!whatsappPhone.trim()) {
+      toast({
+        title: "Error",
+        description: "Por favor ingresa un número de teléfono",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setConnectingIntegration("whatsapp")
+
+    try {
+      const token = localStorage.getItem("authToken")
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      }
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`
+      }
+
+      const response = await fetch(`${API_BASE}/integration/whatsapp/connect`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ phone_number: whatsappPhone })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.detail || "Error al conectar WhatsApp")
+      }
+
+      const data = await response.json()
+
+      // Si hay QR code, mostrarlo en el diálogo
+      if (data.qr_code) {
+        setQrCodeData(data.qr_code)
+        setWhatsappDialogOpen(false)
+        setQrCodeDialogOpen(true)
+        toast({
+          title: "Código QR generado",
+          description: "Escanea el código QR con WhatsApp para completar la conexión",
+        })
+      } else {
+        // Conexión exitosa sin QR
+        setWhatsappDialogOpen(false)
+        setWhatsappPhone("")
+        loadConnectionStatuses()
+        toast({
+          title: "Conectado",
+          description: "WhatsApp se ha conectado correctamente",
+        })
+      }
+    } catch (error: any) {
+      console.error("Error connecting WhatsApp:", error)
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo conectar WhatsApp",
+        variant: "destructive",
+      })
+    } finally {
+      setConnectingIntegration("")
+    }
+  }
+
+  // Conectar Telegram con bot token
+  const handleConnectTelegram = async () => {
+    if (!telegramBotToken.trim()) {
+      toast({
+        title: "Error",
+        description: "Por favor ingresa el token del bot",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setConnectingIntegration("telegram")
+
+    try {
+      const token = localStorage.getItem("authToken")
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      }
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`
+      }
+
+      const response = await fetch(`${API_BASE}/integration/telegram/connect`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ bot_token: telegramBotToken })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.detail || "Error al conectar Telegram")
+      }
+
+      const data = await response.json()
+
+      // Si hay URL de autorización, redirigir
+      if (data.authorization_url) {
+        localStorage.setItem("pending_integration", "telegram")
+        window.location.href = data.authorization_url
+        return
+      }
+
+      // Conexión exitosa
+      setTelegramDialogOpen(false)
+      setTelegramBotToken("")
+      loadConnectionStatuses()
+      toast({
+        title: "Conectado",
+        description: "Telegram se ha conectado correctamente",
+      })
+    } catch (error: any) {
+      console.error("Error connecting Telegram:", error)
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo conectar Telegram",
+        variant: "destructive",
+      })
+    } finally {
+      setConnectingIntegration("")
+    }
+  }
+
   return (
     <div className="flex h-screen bg-background">
       <SidebarNavigation />
@@ -365,6 +519,165 @@ export default function SettingsPage() {
           </motion.div>
         </main>
       </div>
+
+      {/* Diálogo de WhatsApp */}
+      <Dialog open={whatsappDialogOpen} onOpenChange={setWhatsappDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Conectar WhatsApp Business</DialogTitle>
+            <DialogDescription>
+              Ingresa el número de teléfono asociado a tu cuenta de WhatsApp Business
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="whatsapp-phone">Número de teléfono</Label>
+              <Input
+                id="whatsapp-phone"
+                placeholder="+54 9 11 1234-5678"
+                value={whatsappPhone}
+                onChange={(e) => setWhatsappPhone(e.target.value)}
+                disabled={connectingIntegration === "whatsapp"}
+              />
+              <p className="text-xs text-muted-foreground">
+                Incluye el código de país (ej: +54 para Argentina)
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setWhatsappDialogOpen(false)
+                setWhatsappPhone("")
+              }}
+              disabled={connectingIntegration === "whatsapp"}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleConnectWhatsApp}
+              disabled={connectingIntegration === "whatsapp"}
+            >
+              {connectingIntegration === "whatsapp" ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Conectando...
+                </>
+              ) : (
+                "Conectar"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de Telegram */}
+      <Dialog open={telegramDialogOpen} onOpenChange={setTelegramDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Conectar Telegram Bot</DialogTitle>
+            <DialogDescription>
+              Ingresa el token de tu bot de Telegram. Si no tienes uno, créalo con @BotFather
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="telegram-token">Bot Token</Label>
+              <Textarea
+                id="telegram-token"
+                placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+                value={telegramBotToken}
+                onChange={(e) => setTelegramBotToken(e.target.value)}
+                disabled={connectingIntegration === "telegram"}
+                rows={3}
+              />
+              <p className="text-xs text-muted-foreground">
+                Crea un bot en Telegram hablando con{" "}
+                <a
+                  href="https://t.me/BotFather"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  @BotFather
+                </a>
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setTelegramDialogOpen(false)
+                setTelegramBotToken("")
+              }}
+              disabled={connectingIntegration === "telegram"}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleConnectTelegram}
+              disabled={connectingIntegration === "telegram"}
+            >
+              {connectingIntegration === "telegram" ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Conectando...
+                </>
+              ) : (
+                "Conectar"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de QR Code */}
+      <Dialog open={qrCodeDialogOpen} onOpenChange={setQrCodeDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <QrCode className="w-5 h-5" />
+              Escanea el código QR
+            </DialogTitle>
+            <DialogDescription>
+              Abre WhatsApp en tu teléfono y escanea este código para conectar
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-center py-6">
+            {qrCodeData ? (
+              <img
+                src={qrCodeData}
+                alt="QR Code"
+                className="w-64 h-64 border-2 border-border rounded-lg"
+              />
+            ) : (
+              <div className="w-64 h-64 flex items-center justify-center border-2 border-dashed border-border rounded-lg">
+                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+              </div>
+            )}
+          </div>
+          <div className="space-y-2 text-sm text-muted-foreground">
+            <p>1. Abre WhatsApp en tu teléfono</p>
+            <p>2. Ve a Configuración → Dispositivos vinculados</p>
+            <p>3. Toca "Vincular un dispositivo"</p>
+            <p>4. Escanea este código QR</p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setQrCodeDialogOpen(false)
+                setQrCodeData("")
+                loadConnectionStatuses()
+              }}
+            >
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
