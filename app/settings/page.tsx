@@ -63,6 +63,56 @@ export default function SettingsPage() {
 
   // Cargar el estado de las conexiones al montar el componente
   useEffect(() => {
+    // Manejar callback de OAuth (cuando el usuario regresa de Gmail/Outlook)
+    const urlParams = new URLSearchParams(window.location.search)
+    const oauthSuccess = urlParams.get('oauth_success')
+    const oauthError = urlParams.get('oauth_error')
+    const pendingIntegration = localStorage.getItem('pending_integration')
+
+    if (oauthSuccess === 'true' && pendingIntegration) {
+      // OAuth exitoso - obtener nombre de la integración
+      const integrationNames: Record<string, string> = {
+        gmail: 'Gmail',
+        outlook: 'Outlook',
+        whatsapp: 'WhatsApp Business',
+        telegram: 'Telegram'
+      }
+      const integrationName = integrationNames[pendingIntegration] || 'La integración'
+
+      toast({
+        title: "Conexión exitosa",
+        description: `${integrationName} se ha conectado correctamente`,
+      })
+
+      // Limpiar localStorage
+      localStorage.removeItem('pending_integration')
+
+      // Limpiar URL sin recargar la página
+      window.history.replaceState({}, document.title, window.location.pathname)
+    } else if (oauthError && pendingIntegration) {
+      // OAuth falló
+      const integrationNames: Record<string, string> = {
+        gmail: 'Gmail',
+        outlook: 'Outlook',
+        whatsapp: 'WhatsApp Business',
+        telegram: 'Telegram'
+      }
+      const integrationName = integrationNames[pendingIntegration] || 'La integración'
+
+      toast({
+        title: "Error de conexión",
+        description: `No se pudo conectar ${integrationName}. ${oauthError}`,
+        variant: "destructive",
+      })
+
+      // Limpiar localStorage
+      localStorage.removeItem('pending_integration')
+
+      // Limpiar URL sin recargar la página
+      window.history.replaceState({}, document.title, window.location.pathname)
+    }
+
+    // Cargar estados de conexión
     loadConnectionStatuses()
   }, [])
 
@@ -155,7 +205,23 @@ export default function SettingsPage() {
         }
       }
 
-      // Si es conectar, mostrar información adicional
+      // Si es conectar y hay authorization_url (Gmail/Outlook OAuth)
+      if (action === "connect" && data?.authorization_url) {
+        toast({
+          title: "Redirigiendo...",
+          description: `Serás redirigido a ${integration.name} para autorizar la conexión`,
+          duration: 3000,
+        })
+        // Guardar el ID de integración para saber cuál se estaba conectando
+        localStorage.setItem("pending_integration", integrationId)
+        // Redirigir al usuario a la URL de autorización OAuth
+        setTimeout(() => {
+          window.location.href = data.authorization_url
+        }, 1000)
+        return
+      }
+
+      // Si es conectar y hay QR code (WhatsApp/Telegram)
       if (action === "connect" && data?.qr_code) {
         toast({
           title: "Escanea el código QR",
