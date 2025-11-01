@@ -244,7 +244,31 @@ export default function HomePage() {
       })
       const data = await r.json()
       setEmailDetail(data)
-      setUseText(Boolean((data as any).text))
+
+      // Auto-seleccionar según el contenido disponible
+      if (source === "whatsapp" || source === "telegram") {
+        const detail = data as WhatsAppDetail | TelegramDetail
+        // Si solo hay adjunto (sin texto), seleccionar archivo
+        if (detail.attachment && !detail.text) {
+          setUseText(false)
+        }
+        // Si solo hay texto (sin adjunto), seleccionar texto
+        else if (detail.text && !detail.attachment) {
+          setUseText(true)
+        }
+        // Si hay ambos, default a archivo (más común en WhatsApp/Telegram)
+        else if (detail.text && detail.attachment) {
+          setUseText(false)
+        }
+        // Si no hay nada, default a true
+        else {
+          setUseText(true)
+        }
+      } else {
+        // Gmail/Outlook: default a texto si existe
+        setUseText(Boolean((data as any).text))
+      }
+
       setAttachmentIndex(0)
       // si ya hay detalle, abrimos Paso 3 (plantilla)
       setOpenStep(3)
@@ -412,11 +436,12 @@ export default function HomePage() {
     if (source === "document") return files.length > 0
     if (source === "text") return freeText.trim().length > 0
     if (source === "gmail" || source === "outlook") {
-      return Boolean(selectedMsgId && (useText || (emailDetail?.attachments?.length ?? 0) > 0))
+      return Boolean(selectedMsgId && ((useText && emailDetail?.text) || (!useText && (emailDetail?.attachments?.length ?? 0) > 0)))
     }
     if (source === "whatsapp" || source === "telegram") {
       const detail = emailDetail as WhatsAppDetail | TelegramDetail | null
-      return Boolean(selectedMsgId && (useText || detail?.attachment))
+      // Verificar que el contenido seleccionado esté disponible
+      return Boolean(selectedMsgId && ((useText && detail?.text) || (!useText && detail?.attachment)))
     }
     return false
   }, [source, files, freeText, selectedMsgId, emailDetail, useText])
@@ -695,20 +720,29 @@ export default function HomePage() {
                               </div>
                             )}
                             {!useText && (emailDetail as WhatsAppDetail).attachment && (
-                              <div className="p-3 border rounded-lg">
-                                <div className="text-sm font-medium">Archivo adjunto</div>
+                              <div className="p-3 border rounded-lg bg-muted/30">
+                                <div className="text-sm font-medium">📎 Archivo adjunto seleccionado</div>
                                 <div className="text-xs text-muted-foreground mt-1">
-                                  {(emailDetail as WhatsAppDetail).attachment?.filename}
+                                  <strong>Nombre:</strong> {(emailDetail as WhatsAppDetail).attachment?.filename}
                                 </div>
                                 <div className="text-xs text-muted-foreground">
-                                  Tipo: {(emailDetail as WhatsAppDetail).attachment?.mime_type}
+                                  <strong>Tipo:</strong> {(emailDetail as WhatsAppDetail).attachment?.mime_type}
+                                </div>
+                                <div className="text-xs text-green-600 mt-2">
+                                  ✓ Listo para procesar
                                 </div>
                               </div>
                             )}
-                            {(useText || !(emailDetail as WhatsAppDetail).attachment) && emailDetail.text && (
-                              <ScrollArea className="h-32 rounded border p-2 text-xs whitespace-pre-wrap">
-                                {emailDetail.text?.slice(0,3000) || "(sin texto)"}
-                              </ScrollArea>
+                            {useText && emailDetail.text && (
+                              <div>
+                                <div className="text-sm font-medium mb-2">📝 Texto seleccionado</div>
+                                <ScrollArea className="h-32 rounded border p-2 text-xs whitespace-pre-wrap bg-muted/20">
+                                  {emailDetail.text?.slice(0,3000) || "(sin texto)"}
+                                </ScrollArea>
+                                <div className="text-xs text-green-600 mt-2">
+                                  ✓ Listo para procesar
+                                </div>
+                              </div>
                             )}
                             {!emailDetail.text && !(emailDetail as WhatsAppDetail).attachment && (
                               <div className="text-sm text-muted-foreground">No hay contenido disponible</div>
@@ -760,20 +794,29 @@ export default function HomePage() {
                               </div>
                             )}
                             {!useText && (emailDetail as TelegramDetail).attachment && (
-                              <div className="p-3 border rounded-lg">
-                                <div className="text-sm font-medium">Archivo adjunto</div>
+                              <div className="p-3 border rounded-lg bg-muted/30">
+                                <div className="text-sm font-medium">📎 Archivo adjunto seleccionado</div>
                                 <div className="text-xs text-muted-foreground mt-1">
-                                  {(emailDetail as TelegramDetail).attachment?.filename}
+                                  <strong>Nombre:</strong> {(emailDetail as TelegramDetail).attachment?.filename}
                                 </div>
                                 <div className="text-xs text-muted-foreground">
-                                  Tipo: {(emailDetail as TelegramDetail).attachment?.mime_type}
+                                  <strong>Tipo:</strong> {(emailDetail as TelegramDetail).attachment?.mime_type}
+                                </div>
+                                <div className="text-xs text-green-600 mt-2">
+                                  ✓ Listo para procesar
                                 </div>
                               </div>
                             )}
-                            {(useText || !(emailDetail as TelegramDetail).attachment) && emailDetail.text && (
-                              <ScrollArea className="h-32 rounded border p-2 text-xs whitespace-pre-wrap">
-                                {emailDetail.text?.slice(0,3000) || "(sin texto)"}
-                              </ScrollArea>
+                            {useText && emailDetail.text && (
+                              <div>
+                                <div className="text-sm font-medium mb-2">📝 Texto seleccionado</div>
+                                <ScrollArea className="h-32 rounded border p-2 text-xs whitespace-pre-wrap bg-muted/20">
+                                  {emailDetail.text?.slice(0,3000) || "(sin texto)"}
+                                </ScrollArea>
+                                <div className="text-xs text-green-600 mt-2">
+                                  ✓ Listo para procesar
+                                </div>
+                              </div>
                             )}
                             {!emailDetail.text && !(emailDetail as TelegramDetail).attachment && (
                               <div className="text-sm text-muted-foreground">No hay contenido disponible</div>
