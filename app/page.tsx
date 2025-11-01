@@ -18,8 +18,52 @@ import { Loader2, Lightbulb, FileText, Mail, Send, MessageSquare, Phone } from "
 type TemplateMeta = { id: string; name: string; description?: string | null }
 type GmailMsg = { id: string; from?: string; subject?: string }
 type OutlookMsg = { id: string; from?: string; subject?: string; hasAttachments?: boolean }
+type WhatsAppMsg = {
+  id: string
+  sender: { phone: string; name: string }
+  timestamp: string
+  type: string
+  content?: { text: string }
+  attachment?: {
+    type: string
+    filename: string
+    mime_type: string
+    id: string
+  }
+}
+type TelegramMsg = {
+  id: string
+  sender: { phone: string; name: string }
+  timestamp: string
+  type: string
+  content?: { text: string }
+  attachment?: {
+    type: string
+    filename: string
+    mime_type: string
+    id: string
+  }
+}
 type GmailDetail = { text: string; attachments: string[] }
 type OutlookDetail = { text: string; attachments: string[] }
+type WhatsAppDetail = {
+  text?: string
+  attachment?: {
+    type: string
+    filename: string
+    mime_type: string
+    id: string
+  }
+}
+type TelegramDetail = {
+  text?: string
+  attachment?: {
+    type: string
+    filename: string
+    mime_type: string
+    id: string
+  }
+}
 
 type FileResult = {
   fileName?: string
@@ -58,10 +102,10 @@ export default function HomePage() {
   // Gmail/Outlook/WhatsApp/Telegram
   const [gmailList, setGmailList] = useState<GmailMsg[]>([])
   const [outlookList, setOutlookList] = useState<OutlookMsg[]>([])
-  const [whatsappList, setWhatsappList] = useState<GmailMsg[]>([])
-  const [telegramList, setTelegramList] = useState<GmailMsg[]>([])
+  const [whatsappList, setWhatsappList] = useState<WhatsAppMsg[]>([])
+  const [telegramList, setTelegramList] = useState<TelegramMsg[]>([])
   const [selectedMsgId, setSelectedMsgId] = useState<string>("")
-  const [emailDetail, setEmailDetail] = useState<GmailDetail | OutlookDetail | null>(null)
+  const [emailDetail, setEmailDetail] = useState<GmailDetail | OutlookDetail | WhatsAppDetail | TelegramDetail | null>(null)
   const [useText, setUseText] = useState<boolean>(true)
   const [attachmentIndex, setAttachmentIndex] = useState<number>(0)
 
@@ -323,11 +367,11 @@ export default function HomePage() {
           body.outlook = { message_id: selectedMsgId, use_text: useText }
           if (!useText && (emailDetail?.attachments?.length ?? 0) > 0) body.outlook.attachment_index = attachmentIndex
         } else if (source === "whatsapp") {
+          // WhatsApp solo tiene un attachment por mensaje, no necesita índice
           body.whatsapp = { message_id: selectedMsgId, use_text: useText }
-          if (!useText && (emailDetail?.attachments?.length ?? 0) > 0) body.whatsapp.attachment_index = attachmentIndex
         } else if (source === "telegram") {
+          // Telegram solo tiene un attachment por mensaje, no necesita índice
           body.telegram = { message_id: selectedMsgId, use_text: useText }
-          if (!useText && (emailDetail?.attachments?.length ?? 0) > 0) body.telegram.attachment_index = attachmentIndex
         }
         const headersWithContentType = {
           ...headers,
@@ -360,7 +404,13 @@ export default function HomePage() {
   const entradaLista = useMemo(() => {
     if (source === "document") return files.length > 0
     if (source === "text") return freeText.trim().length > 0
-    if (source === "gmail" || source === "outlook" || source === "whatsapp" || source === "telegram") return Boolean(selectedMsgId && (useText || (emailDetail?.attachments?.length ?? 0) > 0))
+    if (source === "gmail" || source === "outlook") {
+      return Boolean(selectedMsgId && (useText || (emailDetail?.attachments?.length ?? 0) > 0))
+    }
+    if (source === "whatsapp" || source === "telegram") {
+      const detail = emailDetail as WhatsAppDetail | TelegramDetail | null
+      return Boolean(selectedMsgId && (useText || detail?.attachment))
+    }
     return false
   }, [source, files, freeText, selectedMsgId, emailDetail, useText])
 
@@ -607,8 +657,12 @@ export default function HomePage() {
                         ) : (
                           (whatsappList || []).map(m => (
                             <button key={m.id} onClick={()=>handleFetchDetail(m.id)} className={`w-full text-left px-3 py-2 border-b hover:bg-muted ${selectedMsgId===m.id? "bg-muted": ""}`}>
-                              <div className="text-sm font-medium">{m.subject || m.from || "(sin asunto)"}</div>
-                              <div className="text-xs text-muted-foreground">{m.from || ""}</div>
+                              <div className="text-sm font-medium">
+                                {m.type === "text" ? (m.content?.text?.slice(0, 50) || "(mensaje de texto)") : m.attachment?.filename || `(${m.type})`}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {m.sender.name || m.sender.phone} • {new Date(parseInt(m.timestamp) * 1000).toLocaleString()}
+                              </div>
                             </button>
                           ))
                         )}
@@ -622,29 +676,35 @@ export default function HomePage() {
                           <div className="text-sm text-muted-foreground">Seleccioná un mensaje…</div>
                         ) : (
                           <>
-                            <div className="flex items-center gap-4 text-sm">
-                              <label className="flex items-center gap-2">
-                                <input type="radio" checked={useText} onChange={()=>setUseText(true)} /> Texto
-                              </label>
-                              <label className="flex items-center gap-2">
-                                <input type="radio" checked={!useText} onChange={()=>setUseText(false)} /> Multimedia
-                              </label>
-                            </div>
-                            {!useText && (
-                              <div>
-                                <Label className="text-sm">Archivo</Label>
-                                <Select value={String(attachmentIndex)} onValueChange={(v)=> setAttachmentIndex(parseInt(v))}>
-                                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                                  <SelectContent>
-                                    {(emailDetail.attachments || []).map((_,i)=>(<SelectItem key={i} value={String(i)}>Archivo #{i+1}</SelectItem>))}
-                                  </SelectContent>
-                                </Select>
+                            {/* Solo mostrar opciones si hay tanto texto como archivo */}
+                            {emailDetail.text && (emailDetail as WhatsAppDetail).attachment && (
+                              <div className="flex items-center gap-4 text-sm">
+                                <label className="flex items-center gap-2">
+                                  <input type="radio" checked={useText} onChange={()=>setUseText(true)} /> Texto
+                                </label>
+                                <label className="flex items-center gap-2">
+                                  <input type="radio" checked={!useText} onChange={()=>setUseText(false)} /> Archivo
+                                </label>
                               </div>
                             )}
-                            {useText && (
+                            {!useText && (emailDetail as WhatsAppDetail).attachment && (
+                              <div className="p-3 border rounded-lg">
+                                <div className="text-sm font-medium">Archivo adjunto</div>
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {(emailDetail as WhatsAppDetail).attachment?.filename}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  Tipo: {(emailDetail as WhatsAppDetail).attachment?.mime_type}
+                                </div>
+                              </div>
+                            )}
+                            {(useText || !(emailDetail as WhatsAppDetail).attachment) && emailDetail.text && (
                               <ScrollArea className="h-32 rounded border p-2 text-xs whitespace-pre-wrap">
                                 {emailDetail.text?.slice(0,3000) || "(sin texto)"}
                               </ScrollArea>
+                            )}
+                            {!emailDetail.text && !(emailDetail as WhatsAppDetail).attachment && (
+                              <div className="text-sm text-muted-foreground">No hay contenido disponible</div>
                             )}
                           </>
                         )}
@@ -662,8 +722,12 @@ export default function HomePage() {
                         ) : (
                           (telegramList || []).map(m => (
                             <button key={m.id} onClick={()=>handleFetchDetail(m.id)} className={`w-full text-left px-3 py-2 border-b hover:bg-muted ${selectedMsgId===m.id? "bg-muted": ""}`}>
-                              <div className="text-sm font-medium">{m.subject || m.from || "(sin asunto)"}</div>
-                              <div className="text-xs text-muted-foreground">{m.from || ""}</div>
+                              <div className="text-sm font-medium">
+                                {m.type === "text" ? (m.content?.text?.slice(0, 50) || "(mensaje de texto)") : m.attachment?.filename || `(${m.type})`}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {m.sender.name || m.sender.phone} • {new Date(parseInt(m.timestamp) * 1000).toLocaleString()}
+                              </div>
                             </button>
                           ))
                         )}
@@ -677,29 +741,35 @@ export default function HomePage() {
                           <div className="text-sm text-muted-foreground">Seleccioná un mensaje…</div>
                         ) : (
                           <>
-                            <div className="flex items-center gap-4 text-sm">
-                              <label className="flex items-center gap-2">
-                                <input type="radio" checked={useText} onChange={()=>setUseText(true)} /> Texto
-                              </label>
-                              <label className="flex items-center gap-2">
-                                <input type="radio" checked={!useText} onChange={()=>setUseText(false)} /> Multimedia
-                              </label>
-                            </div>
-                            {!useText && (
-                              <div>
-                                <Label className="text-sm">Archivo</Label>
-                                <Select value={String(attachmentIndex)} onValueChange={(v)=> setAttachmentIndex(parseInt(v))}>
-                                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                                  <SelectContent>
-                                    {(emailDetail.attachments || []).map((_,i)=>(<SelectItem key={i} value={String(i)}>Archivo #{i+1}</SelectItem>))}
-                                  </SelectContent>
-                                </Select>
+                            {/* Solo mostrar opciones si hay tanto texto como archivo */}
+                            {emailDetail.text && (emailDetail as TelegramDetail).attachment && (
+                              <div className="flex items-center gap-4 text-sm">
+                                <label className="flex items-center gap-2">
+                                  <input type="radio" checked={useText} onChange={()=>setUseText(true)} /> Texto
+                                </label>
+                                <label className="flex items-center gap-2">
+                                  <input type="radio" checked={!useText} onChange={()=>setUseText(false)} /> Archivo
+                                </label>
                               </div>
                             )}
-                            {useText && (
+                            {!useText && (emailDetail as TelegramDetail).attachment && (
+                              <div className="p-3 border rounded-lg">
+                                <div className="text-sm font-medium">Archivo adjunto</div>
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {(emailDetail as TelegramDetail).attachment?.filename}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  Tipo: {(emailDetail as TelegramDetail).attachment?.mime_type}
+                                </div>
+                              </div>
+                            )}
+                            {(useText || !(emailDetail as TelegramDetail).attachment) && emailDetail.text && (
                               <ScrollArea className="h-32 rounded border p-2 text-xs whitespace-pre-wrap">
                                 {emailDetail.text?.slice(0,3000) || "(sin texto)"}
                               </ScrollArea>
+                            )}
+                            {!emailDetail.text && !(emailDetail as TelegramDetail).attachment && (
+                              <div className="text-sm text-muted-foreground">No hay contenido disponible</div>
                             )}
                           </>
                         )}
