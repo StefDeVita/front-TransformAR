@@ -43,6 +43,8 @@ export default function SettingsPage() {
 
   // Datos de conexión
   const [whatsappPhone, setWhatsappPhone] = useState("")
+  const [whatsappPhoneId, setWhatsappPhoneId] = useState("")
+  const [whatsappAccessToken, setWhatsappAccessToken] = useState("")
   const [telegramBotToken, setTelegramBotToken] = useState("")
   const [qrCodeData, setQrCodeData] = useState("")
   const [connectingIntegration, setConnectingIntegration] = useState<string>("")
@@ -321,6 +323,24 @@ export default function SettingsPage() {
       return
     }
 
+    if (!whatsappPhoneId.trim()) {
+      toast({
+        title: "Error",
+        description: "Por favor ingresa el Phone Number ID",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!whatsappAccessToken.trim()) {
+      toast({
+        title: "Error",
+        description: "Por favor ingresa el Access Token",
+        variant: "destructive",
+      })
+      return
+    }
+
     setConnectingIntegration("whatsapp")
 
     try {
@@ -335,7 +355,11 @@ export default function SettingsPage() {
       const response = await fetch(`${API_BASE}/integration/whatsapp/connect`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ phone_number: whatsappPhone })
+        body: JSON.stringify({
+          phone_number: whatsappPhone,
+          phone_number_id: whatsappPhoneId,
+          access_token: whatsappAccessToken
+        })
       })
 
       if (!response.ok) {
@@ -358,6 +382,8 @@ export default function SettingsPage() {
         // Conexión exitosa sin QR
         setWhatsappDialogOpen(false)
         setWhatsappPhone("")
+        setWhatsappPhoneId("")
+        setWhatsappAccessToken("")
         loadConnectionStatuses()
         toast({
           title: "Conectado",
@@ -522,11 +548,11 @@ export default function SettingsPage() {
 
       {/* Diálogo de WhatsApp */}
       <Dialog open={whatsappDialogOpen} onOpenChange={setWhatsappDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Conectar WhatsApp Business</DialogTitle>
+            <DialogTitle>Conectar WhatsApp Business API</DialogTitle>
             <DialogDescription>
-              Ingresa el número de teléfono asociado a tu cuenta de WhatsApp Business
+              Ingresa las credenciales de tu aplicación de WhatsApp Business API desde Meta for Developers
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -540,7 +566,44 @@ export default function SettingsPage() {
                 disabled={connectingIntegration === "whatsapp"}
               />
               <p className="text-xs text-muted-foreground">
-                Incluye el código de país (ej: +54 para Argentina)
+                El número de teléfono registrado en WhatsApp Business (incluye código de país)
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="whatsapp-phone-id">Phone Number ID</Label>
+              <Input
+                id="whatsapp-phone-id"
+                placeholder="123456789012345"
+                value={whatsappPhoneId}
+                onChange={(e) => setWhatsappPhoneId(e.target.value)}
+                disabled={connectingIntegration === "whatsapp"}
+              />
+              <p className="text-xs text-muted-foreground">
+                Encuéntralo en Meta for Developers → WhatsApp → API Setup
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="whatsapp-access-token">Access Token</Label>
+              <Textarea
+                id="whatsapp-access-token"
+                placeholder="EAAxxxxxxxxxxxxxxxxxxxxxxxxx"
+                value={whatsappAccessToken}
+                onChange={(e) => setWhatsappAccessToken(e.target.value)}
+                disabled={connectingIntegration === "whatsapp"}
+                rows={3}
+              />
+              <p className="text-xs text-muted-foreground">
+                Token de acceso permanente de tu app de WhatsApp Business en{" "}
+                <a
+                  href="https://developers.facebook.com/apps"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  Meta for Developers
+                </a>
               </p>
             </div>
           </div>
@@ -550,6 +613,8 @@ export default function SettingsPage() {
               onClick={() => {
                 setWhatsappDialogOpen(false)
                 setWhatsappPhone("")
+                setWhatsappPhoneId("")
+                setWhatsappAccessToken("")
               }}
               disabled={connectingIntegration === "whatsapp"}
             >
