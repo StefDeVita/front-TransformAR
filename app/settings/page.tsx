@@ -127,20 +127,36 @@ export default function SettingsPage() {
       }
 
       const action = integration.connected ? "disconnect" : "connect"
+      const method = integration.connected ? "DELETE" : "POST"
       const response = await fetch(`${API_BASE}/integration/${integrationId}/${action}`, {
-        method: "POST",
+        method: method,
         headers,
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.detail || `Error al ${action === "connect" ? "conectar" : "desconectar"}`)
+        let errorMessage = `Error al ${action === "connect" ? "conectar" : "desconectar"}`
+        try {
+          const error = await response.json()
+          errorMessage = error.detail || errorMessage
+        } catch (e) {
+          // Si no hay JSON en la respuesta, usar el mensaje por defecto
+        }
+        throw new Error(errorMessage)
       }
 
-      const data = await response.json()
+      // Intentar parsear JSON solo si hay contenido
+      let data = null
+      const contentType = response.headers.get("content-type")
+      if (contentType && contentType.includes("application/json")) {
+        try {
+          data = await response.json()
+        } catch (e) {
+          // No hay JSON en la respuesta, continuar sin data
+        }
+      }
 
       // Si es conectar, mostrar información adicional
-      if (action === "connect" && data.qr_code) {
+      if (action === "connect" && data?.qr_code) {
         toast({
           title: "Escanea el código QR",
           description: "Por favor escanea el código QR con tu aplicación para completar la conexión",
