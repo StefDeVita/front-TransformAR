@@ -76,7 +76,19 @@ export default function HomePage() {
   useEffect(() => {
     ;(async () => {
       try {
-        const r = await fetch(`${API_BASE}/templates`, { cache: "no-store" })
+        // Obtener el token de autenticación
+        const token = localStorage.getItem("authToken")
+        const headers: HeadersInit = {
+          "Content-Type": "application/json",
+        }
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`
+        }
+
+        const r = await fetch(`${API_BASE}/templates`, {
+          cache: "no-store",
+          headers
+        })
         const data = await r.json()
         setTemplates(Array.isArray(data) ? data : [])
       } catch (e) {
@@ -104,20 +116,42 @@ export default function HomePage() {
         setLoadingList(true)
         setSelectedMsgId("")
         setEmailDetail(null)
+
+        // Obtener el token de autenticación
+        const token = localStorage.getItem("authToken")
+        const headers: HeadersInit = {
+          "Content-Type": "application/json",
+        }
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`
+        }
+
         if (source === "gmail") {
-          const r = await fetch(`${API_BASE}/input/gmail/messages?limit=10`, { cache: "no-store" })
+          const r = await fetch(`${API_BASE}/input/gmail/messages?limit=10`, {
+            cache: "no-store",
+            headers
+          })
           const d = await r.json()
           setGmailList(d.messages || [])
         } else if (source === "outlook") {
-          const r = await fetch(`${API_BASE}/input/outlook/messages?limit=10`, { cache: "no-store" })
+          const r = await fetch(`${API_BASE}/input/outlook/messages?limit=10`, {
+            cache: "no-store",
+            headers
+          })
           const d = await r.json()
           setOutlookList(d.messages || [])
         } else if (source === "whatsapp") {
-          const r = await fetch(`${API_BASE}/input/whatsapp/messages?limit=10`, { cache: "no-store" })
+          const r = await fetch(`${API_BASE}/input/whatsapp/messages?limit=10`, {
+            cache: "no-store",
+            headers
+          })
           const d = await r.json()
           setWhatsappList(d.messages || [])
         } else if (source === "telegram") {
-          const r = await fetch(`${API_BASE}/input/telegram/messages?limit=10`, { cache: "no-store" })
+          const r = await fetch(`${API_BASE}/input/telegram/messages?limit=10`, {
+            cache: "no-store",
+            headers
+          })
           const d = await r.json()
           setTelegramList(d.messages || [])
         }
@@ -137,6 +171,16 @@ export default function HomePage() {
     try {
       setSelectedMsgId(id)
       setLoadingDetail(true)
+
+      // Obtener el token de autenticación
+      const token = localStorage.getItem("authToken")
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      }
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`
+      }
+
       let endpoint = ""
       if (source === "gmail") {
         endpoint = `${API_BASE}/input/gmail/messages/${id}`
@@ -147,7 +191,10 @@ export default function HomePage() {
       } else if (source === "telegram") {
         endpoint = `${API_BASE}/input/telegram/messages/${id}`
       }
-      const r = await fetch(endpoint, { cache: "no-store" })
+      const r = await fetch(endpoint, {
+        cache: "no-store",
+        headers
+      })
       const data = await r.json()
       setEmailDetail(data)
       setUseText(Boolean((data as any).text))
@@ -214,12 +261,23 @@ export default function HomePage() {
     try {
       setIsProcessing(true)
 
+      // Obtener el token de autenticación
+      const token = localStorage.getItem("authToken")
+      const headers: HeadersInit = {}
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`
+      }
+
       if (source === "document") {
         if (!files.length) { alert("Seleccioná un archivo."); return }
         const fd = new FormData()
         fd.append("template_id", templateId)
         fd.append("file", files[0])
-        const r = await fetch(`${API_BASE}/process/document`, { method: "POST", body: fd })
+        const r = await fetch(`${API_BASE}/process/document`, {
+          method: "POST",
+          headers,
+          body: fd
+        })
         if (!r.ok) throw new Error(await r.text())
         const d = await r.json()
         goToResults({
@@ -234,9 +292,13 @@ export default function HomePage() {
 
       else if (source === "text") {
         if (!freeText.trim()) { alert("Pegá un texto."); return }
+        const headersWithContentType = {
+          ...headers,
+          "Content-Type": "application/json"
+        }
         const r = await fetch(`${API_BASE}/process`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: headersWithContentType,
           body: JSON.stringify({ method: "text", template_id: templateId, text: freeText })
         })
         if (!r.ok) throw new Error(await r.text())
@@ -267,9 +329,13 @@ export default function HomePage() {
           body.telegram = { message_id: selectedMsgId, use_text: useText }
           if (!useText && (emailDetail?.attachments?.length ?? 0) > 0) body.telegram.attachment_index = attachmentIndex
         }
+        const headersWithContentType = {
+          ...headers,
+          "Content-Type": "application/json"
+        }
         const r = await fetch(`${API_BASE}/process`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: headersWithContentType,
           body: JSON.stringify(body)
         })
         if (!r.ok) throw new Error(await r.text())
