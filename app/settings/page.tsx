@@ -26,6 +26,12 @@ type IntegrationStatus = {
 
 export default function SettingsPage() {
   const { toast } = useToast()
+
+  // Indicador de versión para debugging
+  useEffect(() => {
+    console.log("🔄 Settings page loaded - Version with OAuth redirect (2024-11-01)")
+  }, [])
+
   const [integrations, setIntegrations] = useState<IntegrationStatus[]>([
     {
       id: "gmail",
