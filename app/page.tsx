@@ -287,21 +287,43 @@ export default function HomePage() {
         headers["Authorization"] = `Bearer ${token}`
       }
 
-      let endpoint = ""
-      if (source === "gmail") {
-        endpoint = `${API_BASE}/input/gmail/messages/${id}`
-      } else if (source === "outlook") {
-        endpoint = `${API_BASE}/input/outlook/messages/${id}`
-      } else if (source === "whatsapp") {
-        endpoint = `${API_BASE}/input/whatsapp/messages/${id}`
+      let data: any
+
+      // Para WhatsApp y Telegram, los mensajes ya vienen completos en la lista
+      if (source === "whatsapp") {
+        const message = whatsappList.find(m => m.id === id)
+        if (!message) throw new Error("Mensaje no encontrado")
+        // Convertir el mensaje de WhatsApp al formato detail
+        data = {
+          text: message.content?.text,
+          attachment: message.attachment
+        }
       } else if (source === "telegram") {
-        endpoint = `${API_BASE}/input/telegram/messages/${id}`
+        const message = telegramList.find(m => m.id === id)
+        if (!message) throw new Error("Mensaje no encontrado")
+        // Convertir el mensaje de Telegram al formato detail
+        data = {
+          text: message.text,
+          document: message.document,
+          photo: message.photo,
+          video: message.video,
+          audio: message.audio
+        }
+      } else {
+        // Para Gmail y Outlook, sí necesitamos hacer fetch
+        let endpoint = ""
+        if (source === "gmail") {
+          endpoint = `${API_BASE}/input/gmail/messages/${id}`
+        } else if (source === "outlook") {
+          endpoint = `${API_BASE}/input/outlook/messages/${id}`
+        }
+        const r = await fetch(endpoint, {
+          cache: "no-store",
+          headers
+        })
+        data = await r.json()
       }
-      const r = await fetch(endpoint, {
-        cache: "no-store",
-        headers
-      })
-      const data = await r.json()
+
       setEmailDetail(data)
 
       // Auto-seleccionar según el contenido disponible y descargar archivo si es necesario
