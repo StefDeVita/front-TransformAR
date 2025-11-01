@@ -28,7 +28,9 @@ export default function LoginPage() {
     try {
       const response = await fetch(`${API_BASE}/auth/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "true"
+         },
         body: JSON.stringify({ email, password }),
       })
 
@@ -64,7 +66,9 @@ export default function LoginPage() {
     try {
       const response = await fetch(`${API_BASE}/auth/recover-password`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "true"
+         },
         body: JSON.stringify({ email }),
       })
 

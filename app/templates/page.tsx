@@ -80,6 +80,7 @@ export default function TemplatesPage() {
       const token = localStorage.getItem("authToken")
       const headers: HeadersInit = {
         "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true"
       }
       if (token) {
         headers["Authorization"] = `Bearer ${token}`
@@ -122,6 +123,7 @@ export default function TemplatesPage() {
       const token = localStorage.getItem("authToken")
       const headers: HeadersInit = {
         "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true"
       }
       if (token) {
         headers["Authorization"] = `Bearer ${token}`
@@ -156,6 +158,7 @@ export default function TemplatesPage() {
       const token = localStorage.getItem("authToken")
       const headers: HeadersInit = {
         "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true"
       }
       if (token) {
         headers["Authorization"] = `Bearer ${token}`
@@ -461,6 +464,7 @@ function CreateTemplateForm({ onClose, onSuccess }: { onClose: () => void; onSuc
       const token = localStorage.getItem("authToken")
       const headers: HeadersInit = {
         "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true"
       }
       if (token) {
         headers["Authorization"] = `Bearer ${token}`
@@ -670,6 +674,7 @@ function EditTemplateForm({ template, onClose, onSuccess }: { template: ExcelTem
       const token = localStorage.getItem("authToken")
       const headers_api: HeadersInit = {
         "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true"
       }
       if (token) {
         headers_api["Authorization"] = `Bearer ${token}`

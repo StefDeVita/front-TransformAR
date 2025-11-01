@@ -147,6 +147,7 @@ export default function SettingsPage() {
       const token = localStorage.getItem("authToken")
       const headers: HeadersInit = {
         "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true"
       }
       if (token) {
         headers["Authorization"] = `Bearer ${token}`
@@ -210,6 +211,7 @@ export default function SettingsPage() {
       const token = localStorage.getItem("authToken")
       const headers: HeadersInit = {
         "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true"
       }
       if (token) {
         headers["Authorization"] = `Bearer ${token}`
@@ -347,6 +349,7 @@ export default function SettingsPage() {
       const token = localStorage.getItem("authToken")
       const headers: HeadersInit = {
         "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true"
       }
       if (token) {
         headers["Authorization"] = `Bearer ${token}`
@@ -419,6 +422,7 @@ export default function SettingsPage() {
       const token = localStorage.getItem("authToken")
       const headers: HeadersInit = {
         "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true"
       }
       if (token) {
         headers["Authorization"] = `Bearer ${token}`

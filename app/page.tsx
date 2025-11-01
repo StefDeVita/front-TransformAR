@@ -80,6 +80,7 @@ export default function HomePage() {
         const token = localStorage.getItem("authToken")
         const headers: HeadersInit = {
           "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "true"
         }
         if (token) {
           headers["Authorization"] = `Bearer ${token}`
@@ -121,6 +122,7 @@ export default function HomePage() {
         const token = localStorage.getItem("authToken")
         const headers: HeadersInit = {
           "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "true"
         }
         if (token) {
           headers["Authorization"] = `Bearer ${token}`
@@ -176,6 +178,7 @@ export default function HomePage() {
       const token = localStorage.getItem("authToken")
       const headers: HeadersInit = {
         "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true"
       }
       if (token) {
         headers["Authorization"] = `Bearer ${token}`
@@ -263,7 +266,9 @@ export default function HomePage() {
 
       // Obtener el token de autenticación
       const token = localStorage.getItem("authToken")
-      const headers: HeadersInit = {}
+      const headers: HeadersInit = {
+        "ngrok-skip-browser-warning": "true"
+      }
       if (token) {
         headers["Authorization"] = `Bearer ${token}`
       }
@@ -294,7 +299,8 @@ export default function HomePage() {
         if (!freeText.trim()) { alert("Pegá un texto."); return }
         const headersWithContentType = {
           ...headers,
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "true"
         }
         const r = await fetch(`${API_BASE}/process`, {
           method: "POST",
@@ -331,7 +337,8 @@ export default function HomePage() {
         }
         const headersWithContentType = {
           ...headers,
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "true"
         }
         const r = await fetch(`${API_BASE}/process`, {
           method: "POST",
