@@ -32,6 +32,7 @@ export default function SettingsPage() {
     console.log("🔄 Settings page loaded - Version with OAuth redirect (2024-11-01)")
   }, [])
 
+  const [loadingStatuses, setLoadingStatuses] = useState(true)
   const [integrations, setIntegrations] = useState<IntegrationStatus[]>([
     {
       id: "gmail",
@@ -124,6 +125,8 @@ export default function SettingsPage() {
 
   const loadConnectionStatuses = async () => {
     try {
+      setLoadingStatuses(true)
+
       // Obtener el token de autenticación
       const token = localStorage.getItem("authToken")
       const headers: HeadersInit = {
@@ -161,6 +164,8 @@ export default function SettingsPage() {
       )
     } catch (error) {
       console.error("Error loading connection statuses:", error)
+    } finally {
+      setLoadingStatuses(false)
     }
   }
 
@@ -304,48 +309,57 @@ export default function SettingsPage() {
                 <CardTitle>Integraciones de Comunicación</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                {integrations.map((integration) => (
-                  <div key={integration.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center gap-4">
-                      <div className="p-2 bg-sand rounded-lg">{integration.icon}</div>
-                      <div>
-                        <h3 className="font-semibold">{integration.name}</h3>
-                        <p className="text-sm text-muted-foreground">{integration.description}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      {integration.connected ? (
-                        <Badge className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400">
-                          <CheckCircle className="w-3 h-3 mr-1" />
-                          Conectado
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-muted-foreground">
-                          <AlertCircle className="w-3 h-3 mr-1" />
-                          Desconectado
-                        </Badge>
-                      )}
-
-                      <Button
-                        variant={integration.connected ? "outline" : "default"}
-                        size="sm"
-                        className={integration.connected ? "" : "bg-primary hover:bg-primary/90"}
-                        onClick={() => handleToggleConnection(integration.id)}
-                        disabled={integration.loading}
-                      >
-                        {integration.loading ? (
-                          <>
-                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                            Procesando...
-                          </>
-                        ) : (
-                          <>{integration.connected ? "Desconectar" : "Conectar"}</>
-                        )}
-                      </Button>
+                {loadingStatuses ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="flex flex-col items-center gap-3">
+                      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                      <p className="text-sm text-muted-foreground">Verificando estados de conexión...</p>
                     </div>
                   </div>
-                ))}
+                ) : (
+                  integrations.map((integration) => (
+                    <div key={integration.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex items-center gap-4">
+                        <div className="p-2 bg-sand rounded-lg">{integration.icon}</div>
+                        <div>
+                          <h3 className="font-semibold">{integration.name}</h3>
+                          <p className="text-sm text-muted-foreground">{integration.description}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        {integration.connected ? (
+                          <Badge className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400">
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            Conectado
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-muted-foreground">
+                            <AlertCircle className="w-3 h-3 mr-1" />
+                            Desconectado
+                          </Badge>
+                        )}
+
+                        <Button
+                          variant={integration.connected ? "outline" : "default"}
+                          size="sm"
+                          className={integration.connected ? "" : "bg-primary hover:bg-primary/90"}
+                          onClick={() => handleToggleConnection(integration.id)}
+                          disabled={integration.loading}
+                        >
+                          {integration.loading ? (
+                            <>
+                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                              Procesando...
+                            </>
+                          ) : (
+                            <>{integration.connected ? "Desconectar" : "Conectar"}</>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </CardContent>
             </Card>
           </motion.div>
