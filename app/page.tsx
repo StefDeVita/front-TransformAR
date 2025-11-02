@@ -69,25 +69,12 @@ type WhatsAppDetail = {
 }
 type TelegramDetail = {
   text?: string
-  document?: {
-    file_id: string
-    file_name: string
-    file_size: number
-  }
-  photo?: {
-    file_id: string
-    file_size: number
-  }
-  video?: {
+  attachments?: Array<{
     file_id: string
     file_name?: string
-    file_size: number
-  }
-  audio?: {
-    file_id: string
-    file_name?: string
-    file_size: number
-  }
+    file_size?: number
+    type?: string
+  }>
 }
 
 type FileResult = {
@@ -317,13 +304,26 @@ export default function HomePage() {
       } else if (source === "telegram") {
         const message = telegramList.find(m => m.id === id)
         if (!message) throw new Error("Mensaje no encontrado")
-        // Convertir el mensaje de Telegram al formato detail
+
+        // Llamar al endpoint /input/telegram/content para obtener contenido procesado
+        const contentResponse = await fetch(`${API_BASE}/input/telegram/content`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(message)
+        })
+
+        if (!contentResponse.ok) {
+          throw new Error("Error obteniendo contenido de Telegram")
+        }
+
+        const contentData = await contentResponse.json()
+        console.log("Telegram content response:", contentData)
+
+        // contentData = {text: string, attachments: array}
+        // Los attachments tienen file_id
         data = {
-          text: message.text,
-          document: message.document,
-          photo: message.photo,
-          video: message.video,
-          audio: message.audio
+          text: contentData.text,
+          attachments: contentData.attachments || []
         }
       } else {
         // Para Gmail y Outlook, sí necesitamos hacer fetch
@@ -362,31 +362,38 @@ export default function HomePage() {
         }
       } else if (source === "telegram") {
         const detail = data as TelegramDetail
-        // Obtener el file_id del tipo de archivo disponible
-        const fileId = detail.document?.file_id || detail.photo?.file_id || detail.video?.file_id || detail.audio?.file_id
-        const fileName = detail.document?.file_name || detail.video?.file_name || detail.audio?.file_name || "file"
+        const hasAttachments = detail.attachments && detail.attachments.length > 0
+        const firstAttachment = hasAttachments ? detail.attachments![0] : null
 
         console.log("Telegram detail:", detail)
-        console.log("File ID:", fileId)
-        console.log("File name:", fileName)
+        console.log("Has attachments:", hasAttachments)
+        console.log("First attachment:", firstAttachment)
         console.log("Has text:", !!detail.text)
 
         // Si solo hay adjunto (sin texto), seleccionar archivo y descargarlo
-        if (fileId && !detail.text) {
+        if (hasAttachments && !detail.text) {
           console.log("Caso 1: Solo archivo, descargando...")
           shouldUseText = false
-          await downloadTelegramFile(fileId, fileName, token)
+          await downloadTelegramFile(
+            firstAttachment!.file_id,
+            firstAttachment!.file_name || "telegram_file",
+            token
+          )
         }
         // Si solo hay texto (sin adjunto), seleccionar texto
-        else if (detail.text && !fileId) {
+        else if (detail.text && !hasAttachments) {
           console.log("Caso 2: Solo texto")
           shouldUseText = true
         }
         // Si hay ambos, default a archivo
-        else if (detail.text && fileId) {
+        else if (detail.text && hasAttachments) {
           console.log("Caso 3: Texto y archivo, descargando archivo...")
           shouldUseText = false
-          await downloadTelegramFile(fileId, fileName, token)
+          await downloadTelegramFile(
+            firstAttachment!.file_id,
+            firstAttachment!.file_name || "telegram_file",
+            token
+          )
         }
         else {
           console.log("Caso 4: Sin contenido disponible")
@@ -978,14 +985,13 @@ export default function HomePage() {
                           <>
                             {(() => {
                               const detail = emailDetail as TelegramDetail
-                              const hasFile = detail.document || detail.photo || detail.video || detail.audio
-                              const fileName = detail.document?.file_name || detail.video?.file_name || detail.audio?.file_name || "Archivo"
-                              const fileType = detail.document ? "Documento" : detail.photo ? "Foto" : detail.video ? "Video" : detail.audio ? "Audio" : ""
+                              const hasAttachments = detail.attachments && detail.attachments.length > 0
+                              const firstAttachment = hasAttachments ? detail.attachments![0] : null
 
                               return (
                                 <>
                                   {/* Solo mostrar opciones si hay tanto texto como archivo */}
-                                  {detail.text && hasFile && (
+                                  {detail.text && hasAttachments && (
                                     <div className="flex items-center gap-4 text-sm">
                                       <label className="flex items-center gap-2">
                                         <input type="radio" checked={useText} onChange={()=>setUseText(true)} /> Texto
@@ -994,23 +1000,29 @@ export default function HomePage() {
                                         <input type="radio" checked={!useText} onChange={async ()=> {
                                           setUseText(false)
                                           // Descargar el archivo si no está descargado
-                                          if (!downloadedFile && hasFile) {
-                                            const fileId = detail.document?.file_id || detail.photo?.file_id || detail.video?.file_id || detail.audio?.file_id
-                                            if (fileId) {
-                                              const token = localStorage.getItem("authToken")
-                                              await downloadTelegramFile(fileId, fileName, token)
-                                            }
+                                          if (!downloadedFile && firstAttachment) {
+                                            const token = localStorage.getItem("authToken")
+                                            await downloadTelegramFile(
+                                              firstAttachment.file_id,
+                                              firstAttachment.file_name || "telegram_file",
+                                              token
+                                            )
                                           }
                                         }} /> Archivo
                                       </label>
                                     </div>
                                   )}
-                                  {!useText && hasFile && (
+                                  {!useText && hasAttachments && (
                                     <div className="p-3 border rounded-lg bg-muted/30">
-                                      <div className="text-sm font-medium">📎 {fileType} seleccionado</div>
+                                      <div className="text-sm font-medium">📎 Archivo seleccionado</div>
                                       <div className="text-xs text-muted-foreground mt-1">
-                                        <strong>Nombre:</strong> {fileName}
+                                        <strong>Nombre:</strong> {firstAttachment?.file_name || "telegram_file"}
                                       </div>
+                                      {firstAttachment?.type && (
+                                        <div className="text-xs text-muted-foreground">
+                                          <strong>Tipo:</strong> {firstAttachment.type}
+                                        </div>
+                                      )}
                                       {downloadedFile && (
                                         <div className="text-xs text-green-600 mt-2">
                                           ✓ Archivo descargado y listo para procesar
@@ -1029,7 +1041,7 @@ export default function HomePage() {
                                       </div>
                                     </div>
                                   )}
-                                  {!detail.text && !hasFile && (
+                                  {!detail.text && !hasAttachments && (
                                     <div className="text-sm text-muted-foreground">No hay contenido disponible</div>
                                   )}
                                 </>
