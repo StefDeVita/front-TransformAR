@@ -244,6 +244,7 @@ export default function HomePage() {
       const headers: HeadersInit = {}
       if (token) {
         headers["Authorization"] = `Bearer ${token}`
+        headers["ngrok-skip-browser-warning"]= "true"
       }
       const response = await fetch(`${API_BASE}/input/whatsapp/media/${mediaId}`, { headers })
       if (!response.ok) throw new Error("Error descargando archivo de WhatsApp")
@@ -349,19 +350,25 @@ export default function HomePage() {
         // Obtener el file_id del tipo de archivo disponible
         const fileId = detail.document?.file_id || detail.photo?.file_id || detail.video?.file_id || detail.audio?.file_id
         const fileName = detail.document?.file_name || detail.video?.file_name || detail.audio?.file_name || "file"
+        console.log("HOLAAAAAAAAAAAAAAAAAAAAA")
 
         // Si solo hay adjunto (sin texto), seleccionar archivo y descargarlo
         if (fileId && !detail.text) {
           shouldUseText = false
+          console.log("HOLAAAAAAAAAAAAAAAAAAAAA")
           await downloadTelegramFile(fileId, fileName, token)
         }
         // Si solo hay texto (sin adjunto), seleccionar texto
         else if (detail.text && !fileId) {
+          console.log("HOLAAAAAAAAAAAAAAAAAAAAA")
+
           shouldUseText = true
         }
         // Si hay ambos, default a archivo
         else if (detail.text && fileId) {
           shouldUseText = false
+          console.log("HOLAAAAAAAAAAAAAAAAAAAAA")
+
           await downloadTelegramFile(fileId, fileName, token)
         }
       } else {
