@@ -322,29 +322,48 @@ export default function HomePage() {
         console.log("Has audio:", !!message.audio)
         console.log("Text:", message.text)
 
-        // Llamar al endpoint /input/telegram/content para obtener contenido procesado
-        console.log("Enviando al endpoint /input/telegram/content:", JSON.stringify(message, null, 2))
-        const contentResponse = await fetch(`${API_BASE}/input/telegram/content`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(message)
-        })
+        // Procesar directamente desde el mensaje original
+        // Extraer attachments del mensaje
+        const attachments: Array<{file_id: string, file_name?: string, file_size?: number, type?: string}> = []
 
-        if (!contentResponse.ok) {
-          const errorText = await contentResponse.text()
-          console.error("Error response:", errorText)
-          throw new Error("Error obteniendo contenido de Telegram: " + errorText)
+        if (message.document) {
+          attachments.push({
+            file_id: message.document.file_id,
+            file_name: message.document.file_name,
+            file_size: message.document.file_size,
+            type: 'document'
+          })
+        } else if (message.photo) {
+          attachments.push({
+            file_id: message.photo.file_id,
+            file_size: message.photo.file_size,
+            type: 'photo'
+          })
+        } else if (message.video) {
+          attachments.push({
+            file_id: message.video.file_id,
+            file_name: message.video.file_name,
+            file_size: message.video.file_size,
+            type: 'video'
+          })
+        } else if (message.audio) {
+          attachments.push({
+            file_id: message.audio.file_id,
+            file_name: message.audio.file_name,
+            file_size: message.audio.file_size,
+            type: 'audio'
+          })
         }
 
-        const contentData = await contentResponse.json()
-        console.log("Telegram content response:", contentData)
+        console.log("Attachments extraídos del mensaje:", attachments)
 
-        // contentData = {text: string, attachments: array}
-        // Los attachments tienen file_id
+        // Usar los datos directamente del mensaje en lugar de llamar al endpoint
         data = {
-          text: contentData.text,
-          attachments: contentData.attachments || []
+          text: message.text || "",
+          attachments: attachments
         }
+
+        console.log("Telegram detail (procesado localmente):", data)
       } else {
         // Para Gmail y Outlook, sí necesitamos hacer fetch
         let endpoint = ""
