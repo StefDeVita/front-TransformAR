@@ -1118,21 +1118,25 @@ export default function HomePage() {
             )}
 
             {/* Botón principal abajo (grande) */}
-            <div className="sticky bottom-6">
-              <Button
-                onClick={processNow}
-                disabled={isProcessing || !puedeTransformar}
-                className="w-full h-14 text-lg"
-              >
-                {isProcessing ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" /> Procesando…
-                  </>
-                ) : (
-                  <>Transformar 🚀</>
-                )}
-              </Button>
-            </div>
+            {/*<div className="sticky bottom-6">*/}
+            <Card>
+              <CardContent>
+                <Button
+                  onClick={processNow}
+                  disabled={isProcessing || !puedeTransformar}
+                  className="w-full h-14 text-lg"
+                >
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" /> Procesando…
+                    </>
+                  ) : (
+                    <>Transformar 🚀</>
+                  )}
+                </Button>
+            {/*</div>*/}
+              </CardContent>
+            </Card>
 
           </motion.div>
         </main>
