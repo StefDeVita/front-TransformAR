@@ -96,6 +96,8 @@ export default function TemplatesPage() {
       }
       if (token) {
         headers["Authorization"] = `Bearer ${token}`
+        headers["ngrok-skip-browser-warning"]= "true"
+
       }
 
       const response = await fetch(`${API_BASE}/templates`, {
@@ -136,6 +138,7 @@ export default function TemplatesPage() {
       const headers: HeadersInit = {}
       if (token) {
         headers["Authorization"] = `Bearer ${token}`
+        headers["ngrok-skip-browser-warning"]= "true"
       }
 
       const response = await fetch(`${API_BASE}/templates/${templateId}`, {
@@ -170,6 +173,7 @@ export default function TemplatesPage() {
       }
       if (token) {
         headers["Authorization"] = `Bearer ${token}`
+        headers["ngrok-skip-browser-warning"]= "true"
       }
 
       // Generar nuevo ID para la plantilla duplicada
@@ -495,6 +499,7 @@ function CreateTemplateForm({ onClose, onSuccess }: { onClose: () => void; onSuc
       }
       if (token) {
         headers["Authorization"] = `Bearer ${token}`
+        headers["ngrok-skip-browser-warning"]= "true"
       }
 
       // Generar ID único para la nueva plantilla
@@ -695,6 +700,7 @@ function EditTemplateForm({ template, onClose, onSuccess }: { template: GridTemp
       }
       if (token) {
         headers["Authorization"] = `Bearer ${token}`
+        headers["ngrok-skip-browser-warning"]= "true"
       }
 
       const updatedTemplate: GridTemplate = {
