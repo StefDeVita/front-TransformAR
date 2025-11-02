@@ -15,6 +15,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 export default function LoginPage() {
   const router = useRouter()
   const [mode, setMode] = useState<"login" | "recover">("login")
+  const [organization, setOrganization] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -31,7 +32,7 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json",
           "ngrok-skip-browser-warning": "true"
          },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ organization, email, password }),
       })
 
       if (!response.ok) {
@@ -45,6 +46,7 @@ export default function LoginPage() {
       const token = data.token || data.access_token || data.authtoken
       localStorage.setItem("authToken", token)
       localStorage.setItem("userEmail", email)
+      localStorage.setItem("userOrganization", organization)
       
       // Set cookie for server-side middleware
       document.cookie = `authToken=${token}; path=/; max-age=86400; SameSite=Lax`
@@ -121,6 +123,23 @@ export default function LoginPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={mode === "login" ? handleLogin : handleRecover} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="organization">Organización</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="organization"
+                    type="organization"
+                    placeholder="Tu empresa S.A."
+                    value={organization}
+                    onChange={(e) => setOrganization(e.target.value)}
+                    required
+                    className="pl-10"
+                    data-testid="organization-input"
+                  />
+                </div>
+              </div>
+              
               <div className="space-y-2">
                 <Label htmlFor="email">Correo Electrónico</Label>
                 <div className="relative">
