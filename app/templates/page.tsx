@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
 import { SidebarNavigation } from "@/components/sidebar-navigation"
 import { MainHeader } from "@/components/main-header"
@@ -10,9 +11,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useToast } from "@/hooks/use-toast"
 import {
@@ -20,12 +21,9 @@ import {
   Plus,
   Edit,
   Trash2,
-  Download,
   Copy,
-  Eye,
-  Settings,
   Save,
-  HelpCircle,
+  X,
   Lightbulb,
   CheckCircle,
   Loader2,
@@ -33,44 +31,59 @@ import {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 
-interface ExcelTemplate {
+interface GridColumn {
+  col: string  // Letra de columna: "A", "B", "C", etc.
+  title: string  // Descripción del dato a extraer
+  example: string  // Instrucción de transformación
+}
+
+interface GridTemplate {
   id: string
   name: string
   description: string
-  columns: number
-  rows: number
-  createdAt: string
-  lastModified: string
-  headers: string[]
-  data: string[][]
-  status: "active" | "draft"
+  columns: GridColumn[]
+}
+
+// Helper: convierte número de columna a letra (0->A, 1->B, ..., 26->AA)
+function numToCol(num: number): string {
+  let result = ""
+  let n = num
+  while (n >= 0) {
+    result = String.fromCharCode(65 + (n % 26)) + result
+    n = Math.floor(n / 26) - 1
+  }
+  return result
 }
 
 export default function TemplatesPage() {
+  const router = useRouter()
   const { toast } = useToast()
-  const [templates, setTemplates] = useState<ExcelTemplate[]>([])
-  const [selectedTemplate, setSelectedTemplate] = useState<ExcelTemplate | null>(null)
+  const [templates, setTemplates] = useState<GridTemplate[]>([])
+  const [selectedTemplate, setSelectedTemplate] = useState<GridTemplate | null>(null)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+
+  // Verificar autenticación
+  useEffect(() => {
+    const token = localStorage.getItem("authToken")
+    if (!token) {
+      router.push("/login")
+    }
+  }, [router])
 
   // Cargar plantillas del backend
   useEffect(() => {
     loadTemplates()
   }, [])
 
-  const normalizeTemplate = (template: any): ExcelTemplate => {
+  // Normalizar template para asegurar que tenga la estructura correcta
+  const normalizeTemplate = (template: any): GridTemplate => {
     return {
       id: template.id || "",
       name: template.name || "Sin nombre",
       description: template.description || "",
-      columns: template.columns || 0,
-      rows: template.rows || 0,
-      createdAt: template.createdAt || new Date().toISOString().split("T")[0],
-      lastModified: template.lastModified || new Date().toISOString().split("T")[0],
-      headers: Array.isArray(template.headers) ? template.headers : [],
-      data: Array.isArray(template.data) ? template.data : [],
-      status: template.status === "active" || template.status === "draft" ? template.status : "draft",
+      columns: Array.isArray(template.columns) ? template.columns : [],
     }
   }
 
@@ -80,10 +93,11 @@ export default function TemplatesPage() {
       const token = localStorage.getItem("authToken")
       const headers: HeadersInit = {
         "Content-Type": "application/json",
-        "ngrok-skip-browser-warning": "true"
       }
       if (token) {
         headers["Authorization"] = `Bearer ${token}`
+        headers["ngrok-skip-browser-warning"]= "true"
+
       }
 
       const response = await fetch(`${API_BASE}/templates`, {
@@ -111,7 +125,7 @@ export default function TemplatesPage() {
     setIsCreateDialogOpen(true)
   }
 
-  const handleEditTemplate = (template: ExcelTemplate) => {
+  const handleEditTemplate = (template: GridTemplate) => {
     setSelectedTemplate(template)
     setIsEditDialogOpen(true)
   }
@@ -121,12 +135,10 @@ export default function TemplatesPage() {
 
     try {
       const token = localStorage.getItem("authToken")
-      const headers: HeadersInit = {
-        "Content-Type": "application/json",
-        "ngrok-skip-browser-warning": "true"
-      }
+      const headers: HeadersInit = {}
       if (token) {
         headers["Authorization"] = `Bearer ${token}`
+        headers["ngrok-skip-browser-warning"]= "true"
       }
 
       const response = await fetch(`${API_BASE}/templates/${templateId}`, {
@@ -153,25 +165,25 @@ export default function TemplatesPage() {
     }
   }
 
-  const handleDuplicateTemplate = async (template: ExcelTemplate) => {
+  const handleDuplicateTemplate = async (template: GridTemplate) => {
     try {
       const token = localStorage.getItem("authToken")
       const headers: HeadersInit = {
         "Content-Type": "application/json",
-        "ngrok-skip-browser-warning": "true"
       }
       if (token) {
         headers["Authorization"] = `Bearer ${token}`
+        headers["ngrok-skip-browser-warning"]= "true"
       }
 
-      const newTemplate = {
+      // Generar nuevo ID para la plantilla duplicada
+      const newId = `tpl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+      const newTemplate: GridTemplate = {
+        id: newId,
         name: `${template.name} (Copia)`,
         description: template.description,
-        columns: template.columns,
-        rows: template.rows,
-        headers: template.headers,
-        data: template.data,
-        status: "draft",
+        columns: template.columns.map(col => ({ ...col })), // Clonar columnas
       }
 
       const response = await fetch(`${API_BASE}/templates`, {
@@ -224,10 +236,9 @@ export default function TemplatesPage() {
                     <div className="space-y-2">
                       <h2 className="text-lg font-semibold text-foreground">¿Qué son las Plantillas?</h2>
                       <p className="text-sm text-muted-foreground leading-relaxed">
-                        Son como tablas de Excel que definen cómo quiere que se vean sus reportes
-                        finales. Por ejemplo, puede crear un formato que organice automáticamente
-                        los datos en columnas como "Cliente", "Fecha", "Monto", etc. ¡Es como tener un asistente que
-                        ordena todo por usted!
+                        Son formatos que definen qué información extraer de sus documentos y cómo organizarla.
+                        Por ejemplo, puede definir columnas como "Cliente", "Fecha", "Monto" y el sistema
+                        extraerá automáticamente esos datos de cada documento.
                       </p>
                     </div>
                   </div>
@@ -243,7 +254,7 @@ export default function TemplatesPage() {
                       </div>
                       <div>
                         <p className="text-2xl font-bold text-primary">{templates.length}</p>
-                        <p className="text-sm text-muted-foreground">Formatos Creados</p>
+                        <p className="text-sm text-muted-foreground">Plantillas Creadas</p>
                       </div>
                     </div>
                   </CardContent>
@@ -257,9 +268,9 @@ export default function TemplatesPage() {
                       </div>
                       <div>
                         <p className="text-2xl font-bold text-green-600">
-                          {templates.filter((t) => t.status === "active").length}
+                          {templates.reduce((sum, t) => sum + t.columns.length, 0)}
                         </p>
-                        <p className="text-sm text-muted-foreground">Listos para Usar</p>
+                        <p className="text-sm text-muted-foreground">Columnas Totales</p>
                       </div>
                     </div>
                   </CardContent>
@@ -268,14 +279,14 @@ export default function TemplatesPage() {
                 <Card className="hover:shadow-md transition-shadow">
                   <CardContent className="p-6">
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-sun/20 rounded-lg flex items-center justify-center">
-                        <Settings className="w-6 h-6 text-sun" />
+                      <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+                        <FileSpreadsheet className="w-6 h-6 text-blue-600" />
                       </div>
                       <div>
-                        <p className="text-2xl font-bold text-sun">
-                          {templates.filter((t) => t.status === "draft").length}
+                        <p className="text-2xl font-bold text-blue-600">
+                          {templates.length > 0 ? Math.round(templates.reduce((sum, t) => sum + t.columns.length, 0) / templates.length) : 0}
                         </p>
-                        <p className="text-sm text-muted-foreground">En Preparación</p>
+                        <p className="text-sm text-muted-foreground">Promedio por Plantilla</p>
                       </div>
                     </div>
                   </CardContent>
@@ -290,24 +301,27 @@ export default function TemplatesPage() {
                     </div>
                     <Button onClick={handleCreateTemplate} className="bg-primary hover:bg-primary-hover">
                       <Plus className="w-4 h-4 mr-2" />
-                      Crear Nuevo Formato
+                      Crear Nueva Plantilla
                     </Button>
                   </div>
                 </CardHeader>
                 <CardContent className="p-6">
-                  {templates.length === 0 ? (
+                  {loading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                    </div>
+                  ) : templates.length === 0 ? (
                     <div className="text-center py-12">
                       <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
                         <FileSpreadsheet className="w-8 h-8 text-muted-foreground" />
                       </div>
-                      <h3 className="text-lg font-semibold mb-2">¡Comience creando su primer formato!</h3>
+                      <h3 className="text-lg font-semibold mb-2">¡Comience creando su primera plantilla!</h3>
                       <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                        Los formatos le ayudan a organizar automáticamente la información extraída de sus documentos en
-                        planillas Excel ordenadas y profesionales.
+                        Las plantillas le ayudan a extraer información específica de sus documentos automáticamente.
                       </p>
                       <Button onClick={handleCreateTemplate} className="bg-primary hover:bg-primary-hover">
                         <Plus className="w-4 h-4 mr-2" />
-                        Crear Mi Primer Formato
+                        Crear Mi Primera Plantilla
                       </Button>
                     </div>
                   ) : (
@@ -328,77 +342,67 @@ export default function TemplatesPage() {
                                   </div>
                                   <div>
                                     <h3 className="font-semibold text-sm">{template.name}</h3>
-                                    <Badge
-                                      variant={template.status === "active" ? "default" : "secondary"}
-                                      className={`text-xs mt-1 ${
-                                        template.status === "active"
-                                          ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
-                                          : "bg-sun/20 text-sun-foreground"
-                                      }`}
-                                    >
-                                      {template.status === "active" ? "✓ Listo" : "⚠ En preparación"}
+                                    <Badge variant="secondary" className="text-xs mt-1">
+                                      {template.columns.length} columnas
                                     </Badge>
                                   </div>
                                 </div>
                               </div>
                             </CardHeader>
                             <CardContent className="pt-0">
-                              <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{template.description}</p>
+                              <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{template.description || "Sin descripción"}</p>
 
-                              <div className="space-y-2 mb-4 bg-muted/30 p-3 rounded-lg">
-                                <div className="flex justify-between text-xs">
-                                  <span className="text-muted-foreground">Columnas de datos:</span>
-                                  <span className="font-medium text-primary">{template.columns || 0}</span>
-                                </div>
-                                <div className="flex justify-between text-xs">
-                                  <span className="text-muted-foreground">Campos configurados:</span>
-                                  <span className="font-medium text-primary">{template.headers?.length || 0}</span>
-                                </div>
-                                <div className="flex justify-between text-xs">
-                                  <span className="text-muted-foreground">Última modificación:</span>
-                                  <span className="font-medium">
-                                    {template.lastModified ? new Date(template.lastModified).toLocaleDateString("es-AR") : "N/A"}
-                                  </span>
-                                </div>
+                              <div className="space-y-1 mb-4 bg-muted/30 p-3 rounded-lg max-h-32 overflow-y-auto">
+                                <p className="text-xs font-medium text-muted-foreground mb-2">Columnas:</p>
+                                {template.columns.map((col) => (
+                                  <div key={col.col} className="text-xs flex gap-2">
+                                    <span className="font-mono font-bold text-primary">{col.col}:</span>
+                                    <span className="text-foreground">{col.title}</span>
+                                  </div>
+                                ))}
                               </div>
 
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="flex gap-2">
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="sm" onClick={() => handleEditTemplate(template)}>
-                                      <Edit className="w-3 h-3" />
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleEditTemplate(template)}
+                                      className="flex-1"
+                                    >
+                                      <Edit className="w-3 h-3 mr-1" />
+                                      Editar
                                     </Button>
                                   </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Editar formato</p>
-                                  </TooltipContent>
-                                </Tooltip>
-
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="sm" onClick={() => handleDuplicateTemplate(template)}>
-                                      <Copy className="w-3 h-3" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Hacer una copia</p>
-                                  </TooltipContent>
+                                  <TooltipContent>Editar plantilla</TooltipContent>
                                 </Tooltip>
 
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <Button
-                                      variant="ghost"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleDuplicateTemplate(template)}
+                                    >
+                                      <Copy className="w-3 h-3" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Duplicar</TooltipContent>
+                                </Tooltip>
+
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="outline"
                                       size="sm"
                                       onClick={() => handleDeleteTemplate(template.id)}
-                                      className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                      className="text-destructive hover:bg-destructive/10"
                                     >
                                       <Trash2 className="w-3 h-3" />
                                     </Button>
                                   </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Eliminar formato</p>
-                                  </TooltipContent>
+                                  <TooltipContent>Eliminar</TooltipContent>
                                 </Tooltip>
                               </div>
                             </CardContent>
@@ -413,10 +417,11 @@ export default function TemplatesPage() {
           </main>
         </div>
 
+        {/* Dialog de Crear */}
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>🎯 Crear Plantilla</DialogTitle>
+              <DialogTitle>Crear Nueva Plantilla</DialogTitle>
             </DialogHeader>
             <CreateTemplateForm
               onClose={() => setIsCreateDialogOpen(false)}
@@ -425,20 +430,19 @@ export default function TemplatesPage() {
           </DialogContent>
         </Dialog>
 
+        {/* Dialog de Editar */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="max-w-6xl h-[90vh] flex flex-col">
-            <DialogHeader className="flex-shrink-0">
-              <DialogTitle>✏️ Editar Plantilla: {selectedTemplate?.name}</DialogTitle>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Editar Plantilla</DialogTitle>
             </DialogHeader>
-            <div className="flex-1 overflow-hidden">
-              {selectedTemplate && (
-                <EditTemplateForm
-                  template={selectedTemplate}
-                  onClose={() => setIsEditDialogOpen(false)}
-                  onSuccess={loadTemplates}
-                />
-              )}
-            </div>
+            {selectedTemplate && (
+              <EditTemplateForm
+                template={selectedTemplate}
+                onClose={() => setIsEditDialogOpen(false)}
+                onSuccess={loadTemplates}
+              />
+            )}
           </DialogContent>
         </Dialog>
       </div>
@@ -451,37 +455,61 @@ function CreateTemplateForm({ onClose, onSuccess }: { onClose: () => void; onSuc
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    columns: 5,
-    rows: 10,
   })
+  const [columns, setColumns] = useState<GridColumn[]>([
+    { col: "A", title: "", example: "" }
+  ])
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const addColumn = () => {
+    const nextCol = numToCol(columns.length)
+    setColumns([...columns, { col: nextCol, title: "", example: "" }])
+  }
+
+  const removeColumn = (index: number) => {
+    if (columns.length > 1) {
+      setColumns(columns.filter((_, i) => i !== index))
+    }
+  }
+
+  const updateColumn = (index: number, field: keyof GridColumn, value: string) => {
+    const newColumns = [...columns]
+    newColumns[index] = { ...newColumns[index], [field]: value }
+    setColumns(newColumns)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // Validar que todas las columnas tengan título
+    if (columns.some(col => !col.title.trim())) {
+      toast({
+        title: "Error",
+        description: "Todas las columnas deben tener un título",
+        variant: "destructive",
+      })
+      return
+    }
 
     try {
       setIsSubmitting(true)
       const token = localStorage.getItem("authToken")
       const headers: HeadersInit = {
         "Content-Type": "application/json",
-        "ngrok-skip-browser-warning": "true"
       }
       if (token) {
         headers["Authorization"] = `Bearer ${token}`
+        headers["ngrok-skip-browser-warning"]= "true"
       }
 
-      // Crear arrays de headers y data iniciales
-      const headers_array = Array(formData.columns).fill("").map((_, i) => `columna_${i + 1}`)
-      const data_array = Array(formData.rows).fill(null).map(() => Array(formData.columns).fill(""))
+      // Generar ID único para la nueva plantilla
+      const newId = `tpl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
-      const templateData = {
+      const templateData: GridTemplate = {
+        id: newId,
         name: formData.name,
         description: formData.description,
-        columns: formData.columns,
-        rows: formData.rows,
-        headers: headers_array,
-        data: data_array,
-        status: "draft",
+        columns: columns,
       }
 
       const response = await fetch(`${API_BASE}/templates`, {
@@ -521,78 +549,94 @@ function CreateTemplateForm({ onClose, onSuccess }: { onClose: () => void; onSuc
           <div>
             <h4 className="font-medium text-sm mb-1">¿Cómo funciona esto?</h4>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Está creando un formato que define cómo se organizarán sus datos en Excel. Piense en las columnas que
-              necesita (como "Cliente", "Fecha", "Monto") y cuántas filas de información espera procesar habitualmente.
+              Defina las columnas que desea extraer de sus documentos. Por ejemplo: "Cliente", "Fecha de Factura", "Monto Total".
+              Puede agregar instrucciones opcionales para cada columna (ej: "formato dd/mm/yyyy").
             </p>
           </div>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4">
           <div>
-            <Label htmlFor="name">Nombre del Formato</Label>
+            <Label htmlFor="name">Nombre de la Plantilla *</Label>
             <Input
               id="name"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="Ej: Facturas de Clientes, Control de Stock..."
+              placeholder="Ej: Facturas de Clientes"
               required
             />
-            <p className="text-xs text-muted-foreground mt-1">
-              Use un nombre que describa qué tipo de documentos va a procesar
-            </p>
           </div>
           <div>
-            <Label htmlFor="description">¿Para qué lo va a usar?</Label>
-            <Input
+            <Label htmlFor="description">Descripción</Label>
+            <Textarea
               id="description"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Ej: Para organizar las facturas mensuales de mis clientes"
+              placeholder="Ej: Plantilla para procesar facturas de clientes y extraer información clave"
+              rows={2}
             />
-            <p className="text-xs text-muted-foreground mt-1">
-              Descripción breve para recordar el propósito de este formato
-            </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="columns">¿Cuántas columnas necesita?</Label>
-            <Input
-              id="columns"
-              type="number"
-              min="1"
-              max="50"
-              value={formData.columns}
-              onChange={(e) => setFormData({ ...formData, columns: Number.parseInt(e.target.value) })}
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Ej: Cliente, Fecha, Producto, Cantidad, Total = 5 columnas
-            </p>
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <Label>Columnas</Label>
+            <Button type="button" variant="outline" size="sm" onClick={addColumn}>
+              <Plus className="w-4 h-4 mr-1" />
+              Agregar Columna
+            </Button>
           </div>
-          <div>
-            <Label htmlFor="rows">¿Cuántas filas de datos espera?</Label>
-            <Input
-              id="rows"
-              type="number"
-              min="1"
-              max="1000"
-              value={formData.rows}
-              onChange={(e) => setFormData({ ...formData, rows: Number.parseInt(e.target.value) })}
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Cantidad aproximada de registros que procesará habitualmente
-            </p>
+
+          <div className="space-y-3">
+            {columns.map((col, index) => (
+              <Card key={index} className="p-4">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <span className="font-mono font-bold text-primary">{col.col}</span>
+                    </div>
+                    <div className="flex-1 grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs">Título *</Label>
+                        <Input
+                          value={col.title}
+                          onChange={(e) => updateColumn(index, "title", e.target.value)}
+                          placeholder="Ej: Cliente, Fecha, Monto"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Instrucciones (opcional)</Label>
+                        <Input
+                          value={col.example}
+                          onChange={(e) => updateColumn(index, "example", e.target.value)}
+                          placeholder="Ej: formato dd/mm/yyyy"
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeColumn(index)}
+                      disabled={columns.length === 1}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ))}
           </div>
         </div>
 
-        <div className="flex justify-end gap-3">
-          <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
+        <div className="flex gap-3 pt-4 border-t">
+          <Button type="button" variant="outline" onClick={onClose} className="flex-1">
             Cancelar
           </Button>
-          <Button type="submit" className="bg-primary hover:bg-primary-hover" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting} className="flex-1">
             {isSubmitting ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -600,8 +644,8 @@ function CreateTemplateForm({ onClose, onSuccess }: { onClose: () => void; onSuc
               </>
             ) : (
               <>
-                <Plus className="w-4 h-4 mr-2" />
-                Crear Mi Formato
+                <Save className="w-4 h-4 mr-2" />
+                Crear Plantilla
               </>
             )}
           </Button>
@@ -611,88 +655,65 @@ function CreateTemplateForm({ onClose, onSuccess }: { onClose: () => void; onSuc
   )
 }
 
-function EditTemplateForm({ template, onClose, onSuccess }: { template: ExcelTemplate; onClose: () => void; onSuccess: () => void }) {
+function EditTemplateForm({ template, onClose, onSuccess }: { template: GridTemplate; onClose: () => void; onSuccess: () => void }) {
   const { toast } = useToast()
-  const [headers, setHeaders] = useState<string[]>(template.headers || [])
-  const [data, setData] = useState<string[][]>(template.data || [])
-  const [templateInfo, setTemplateInfo] = useState({
-    name: template.name || "",
-    description: template.description || "",
+  const [formData, setFormData] = useState({
+    name: template.name,
+    description: template.description,
   })
+  const [columns, setColumns] = useState<GridColumn[]>(template.columns.map(col => ({ ...col })))
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const updateHeader = (index: number, value: string) => {
-    const newHeaders = [...headers]
-    newHeaders[index] = value
-    setHeaders(newHeaders)
-  }
-
-  const updateCell = (rowIndex: number, colIndex: number, value: string) => {
-    const newData = [...data]
-    if (!newData[rowIndex]) {
-      newData[rowIndex] = new Array(headers.length).fill("")
-    }
-    newData[rowIndex][colIndex] = value
-    setData(newData)
-  }
-
   const addColumn = () => {
-    setHeaders([...headers, "Nueva Columna"])
-    const newData = data.map((row) => [...row, ""])
-    setData(newData)
-  }
-
-  const addRow = () => {
-    setData([...data, new Array(headers.length).fill("")])
+    const nextCol = numToCol(columns.length)
+    setColumns([...columns, { col: nextCol, title: "", example: "" }])
   }
 
   const removeColumn = (index: number) => {
-    if (headers.length > 1) {
-      setHeaders(headers.filter((_, i) => i !== index))
-      setData(data.map((row) => row.filter((_, i) => i !== index)))
+    if (columns.length > 1) {
+      setColumns(columns.filter((_, i) => i !== index))
     }
   }
 
-  const removeRow = (index: number) => {
-    if (data.length > 1) {
-      setData(data.filter((_, i) => i !== index))
-    }
-  }
-
-  const getColumnLetter = (index: number): string => {
-    let result = ""
-    while (index >= 0) {
-      result = String.fromCharCode(65 + (index % 26)) + result
-      index = Math.floor(index / 26) - 1
-    }
-    return result
+  const updateColumn = (index: number, field: keyof GridColumn, value: string) => {
+    const newColumns = [...columns]
+    newColumns[index] = { ...newColumns[index], [field]: value }
+    setColumns(newColumns)
   }
 
   const handleSave = async () => {
+    // Validar que todas las columnas tengan título
+    if (columns.some(col => !col.title.trim())) {
+      toast({
+        title: "Error",
+        description: "Todas las columnas deben tener un título",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       setIsSubmitting(true)
       const token = localStorage.getItem("authToken")
-      const headers_api: HeadersInit = {
+      const headers: HeadersInit = {
         "Content-Type": "application/json",
-        "ngrok-skip-browser-warning": "true"
       }
       if (token) {
-        headers_api["Authorization"] = `Bearer ${token}`
+        headers["Authorization"] = `Bearer ${token}`
+        headers["ngrok-skip-browser-warning"]= "true"
       }
 
-      const updatedTemplate = {
-        name: templateInfo.name,
-        description: templateInfo.description,
-        columns: headers.length,
-        rows: data.length,
-        headers: headers,
-        data: data,
-        status: "active", // Cuando se guarda, se marca como activa
+      const updatedTemplate: GridTemplate = {
+        id: template.id,
+        name: formData.name,
+        description: formData.description,
+        columns: columns,
       }
 
-      const response = await fetch(`${API_BASE}/templates/${template.id}`, {
-        method: "PUT",
-        headers: headers_api,
+      // El backend usa POST para upsert (crear o actualizar)
+      const response = await fetch(`${API_BASE}/templates`, {
+        method: "POST",
+        headers,
         body: JSON.stringify(updatedTemplate),
       })
 
@@ -720,193 +741,83 @@ function EditTemplateForm({ template, onClose, onSuccess }: { template: ExcelTem
   }
 
   return (
-    <div className="h-full flex flex-col space-y-6">
-      <Tabs defaultValue="table" className="flex-1 flex flex-col space-y-4">
-        <TabsList className="grid w-full grid-cols-2 flex-shrink-0">
-          <TabsTrigger value="table">📊 Diseñar Mi Excel</TabsTrigger>
-          <TabsTrigger value="settings">⚙️ Información General</TabsTrigger>
-        </TabsList>
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 gap-4">
+        <div>
+          <Label htmlFor="edit-name">Nombre de la Plantilla *</Label>
+          <Input
+            id="edit-name"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor="edit-description">Descripción</Label>
+          <Textarea
+            id="edit-description"
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            rows={2}
+          />
+        </div>
+      </div>
 
-        <TabsContent value="table" className="flex-1 flex flex-col space-y-4">
-          <div className="bg-gradient-to-r from-primary/5 to-sand/10 border border-primary/20 rounded-lg p-4 flex-shrink-0">
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0">
-                <FileSpreadsheet className="w-4 h-4 text-primary" />
-              </div>
-              <div>
-                <h4 className="font-medium text-sm mb-2">Diseñe su Plantilla como un Excel</h4>
-                <p className="text-xs text-muted-foreground leading-relaxed mb-3">
-                  Esta tabla funciona igual que Excel. La primera fila son los títulos de las columnas (encabezados). En
-                  la fila siguiente, describa cómo quiere que aparezca información extraída de sus documentos.
-                </p>
-                <div className="flex items-center gap-4 text-xs">
-                  <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 bg-primary/20 rounded"></div>
-                    <span>Encabezados (títulos)</span>
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <Label>Columnas</Label>
+          <Button type="button" variant="outline" size="sm" onClick={addColumn}>
+            <Plus className="w-4 h-4 mr-1" />
+            Agregar Columna
+          </Button>
+        </div>
+
+        <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+          {columns.map((col, index) => (
+            <Card key={index} className="p-4">
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <span className="font-mono font-bold text-primary">{col.col}</span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 bg-background border rounded"></div>
-                    <span>Formatos deseados</span>
+                  <div className="flex-1 grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-xs">Título *</Label>
+                      <Input
+                        value={col.title}
+                        onChange={(e) => updateColumn(index, "title", e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Instrucciones (opcional)</Label>
+                      <Input
+                        value={col.example}
+                        onChange={(e) => updateColumn(index, "example", e.target.value)}
+                      />
+                    </div>
                   </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeColumn(index)}
+                    disabled={columns.length === 1}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between flex-shrink-0">
-            <h3 className="text-lg font-semibold">Su Formato de Excel</h3>
-            <div className="flex gap-2">
-              <Button onClick={addColumn} size="sm" variant="outline" className="text-xs bg-transparent">
-                <Plus className="w-3 h-3 mr-1" />Columna
-              </Button>
-            </div>
-          </div>
-
-          <div className="flex-1 border border-border rounded-lg overflow-hidden bg-white dark:bg-card">
-            <div className="h-full overflow-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-muted/50">
-                    <th className="w-12 h-8 border-r border-border bg-muted text-xs font-medium text-center">#</th>
-                    {headers.map((_, index) => (
-                      <th
-                        key={index}
-                        className="min-w-32 h-8 border-r border-border bg-muted text-xs font-medium text-center"
-                      >
-                        {getColumnLetter(index)}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="bg-primary/5">
-                    <td className="w-12 h-10 border-r border-b border-border bg-muted text-xs font-medium text-center">
-                      1
-                    </td>
-                    {headers.map((header, index) => (
-                      <td key={index} className="border-r border-b border-border p-0">
-                        <Input
-                          value={header}
-                          onChange={(e) => updateHeader(index, e.target.value)}
-                          className="border-0 rounded-none h-10 bg-primary/5 font-medium text-center"
-                          placeholder="Título de columna"
-                        />
-                      </td>
-                    ))}
-                  </tr>
-                  {data.map((row, rowIndex) => (
-                    <tr key={rowIndex}>
-                      <td className="w-12 h-10 border-r border-b border-border bg-muted text-xs font-medium text-center">
-                        {rowIndex + 2}
-                      </td>
-                      {headers.map((_, colIndex) => (
-                        <td key={colIndex} className="border-r border-b border-border p-0">
-                          <Input
-                            value={row[colIndex] || ""}
-                            onChange={(e) => updateCell(rowIndex, colIndex, e.target.value)}
-                            className="border-0 rounded-none h-10 text-center"
-                          />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="bg-gradient-to-r from-sand/20 to-sun/10 border border-sun/30 rounded-lg p-4 flex-shrink-0">
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-sun/30 rounded-full flex items-center justify-center flex-shrink-0">
-                <Lightbulb className="w-4 h-4 text-sun" />
-              </div>
-              <div>
-                <h4 className="font-medium text-sm mb-2 text-sun-foreground">💡 Ejemplos prácticos para PyMEs</h4>
-                <div className="space-y-3 text-xs">
-                  <div>
-                    <p className="font-medium mb-1">📄 Para facturas:</p>
-                    <p className="text-muted-foreground">
-                      Encabezados: Cliente | Fecha | N° Factura | Subtotal | IVA | Total
-                      <br />
-                      Datos: <code className="bg-background px-1 rounded">{"{{cliente}}"}</code> |{" "}
-                      <code className="bg-background px-1 rounded">{"{{fecha}}"}</code> |{" "}
-                      <code className="bg-background px-1 rounded">{"{{numero}}"}</code> |{" "}
-                      <code className="bg-background px-1 rounded">{"{{subtotal}}"}</code> |{" "}
-                      <code className="bg-background px-1 rounded">{"{{iva}}"}</code> |{" "}
-                      <code className="bg-background px-1 rounded">{"{{total}}"}</code>
-                    </p>
-                  </div>
-                  <div>
-                    <p className="font-medium mb-1">📦 Para inventario:</p>
-                    <p className="text-muted-foreground">
-                      Encabezados: Código | Producto | Stock | Precio
-                      <br />
-                      Datos: <code className="bg-background px-1 rounded">{"{{codigo}}"}</code> |{" "}
-                      <code className="bg-background px-1 rounded">{"{{producto}}"}</code> |{" "}
-                      <code className="bg-background px-1 rounded">{"{{stock}}"}</code> |{" "}
-                      <code className="bg-background px-1 rounded">{"{{precio}}"}</code>
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="settings" className="flex-1 overflow-y-auto space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Información General</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label>Nombre</Label>
-                  <Input
-                    value={templateInfo.name}
-                    onChange={(e) => setTemplateInfo({ ...templateInfo, name: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label>Descripción</Label>
-                  <Input
-                    value={templateInfo.description}
-                    onChange={(e) => setTemplateInfo({ ...templateInfo, description: e.target.value })}
-                  />
-                </div>
-              </CardContent>
             </Card>
+          ))}
+        </div>
+      </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Estadísticas</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Columnas:</span>
-                  <span className="text-sm font-medium">{headers.length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Filas de datos:</span>
-                  <span className="text-sm font-medium">{data.length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Campos mapeados:</span>
-                  <span className="text-sm font-medium">
-                    {data.flat().filter((cell) => cell && typeof cell === 'string' && cell.includes("{{")).length}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
-
-      <div className="flex justify-end gap-3 pt-4 border-t flex-shrink-0">
-        <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
+      <div className="flex gap-3 pt-4 border-t">
+        <Button type="button" variant="outline" onClick={onClose} className="flex-1">
           Cancelar
         </Button>
-        <Button className="bg-primary hover:bg-primary-hover" onClick={handleSave} disabled={isSubmitting}>
+        <Button onClick={handleSave} disabled={isSubmitting} className="flex-1">
           {isSubmitting ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -915,7 +826,7 @@ function EditTemplateForm({ template, onClose, onSuccess }: { template: ExcelTem
           ) : (
             <>
               <Save className="w-4 h-4 mr-2" />
-              Guardar Mi Formato
+              Guardar Cambios
             </>
           )}
         </Button>
