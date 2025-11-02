@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { SidebarNavigation } from "@/components/sidebar-navigation"
 import { MainHeader } from "@/components/main-header"
@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { useToast } from "@/hooks/use-toast"
 import {
   FileSpreadsheet,
   Plus,
@@ -27,7 +28,10 @@ import {
   HelpCircle,
   Lightbulb,
   CheckCircle,
+  Loader2,
 } from "lucide-react"
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 
 interface ExcelTemplate {
   id: string
@@ -42,28 +46,66 @@ interface ExcelTemplate {
   status: "active" | "draft"
 }
 
-const mockTemplates: ExcelTemplate[] = [
-  {
-    id: "1",
-    name: "Pedido",
-    description: "Plantilla para reportes mensuales de ventas",
-    columns: 3,
-    rows: 10,
-    createdAt: "2025-10-03",
-    lastModified: "2025-10-03",
-    headers: ["nombre_del_cliente", "fecha", "descripcion_productos"],
-    data: [
-      ["Nombre", "dd/mm/aaaa", "pasala a aleman"],
-    ],
-    status: "active",
-  }
-]
-
 export default function TemplatesPage() {
-  const [templates, setTemplates] = useState<ExcelTemplate[]>(mockTemplates)
+  const { toast } = useToast()
+  const [templates, setTemplates] = useState<ExcelTemplate[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState<ExcelTemplate | null>(null)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+
+  // Cargar plantillas del backend
+  useEffect(() => {
+    loadTemplates()
+  }, [])
+
+  const normalizeTemplate = (template: any): ExcelTemplate => {
+    return {
+      id: template.id || "",
+      name: template.name || "Sin nombre",
+      description: template.description || "",
+      columns: template.columns || 0,
+      rows: template.rows || 0,
+      createdAt: template.createdAt || new Date().toISOString().split("T")[0],
+      lastModified: template.lastModified || new Date().toISOString().split("T")[0],
+      headers: Array.isArray(template.headers) ? template.headers : [],
+      data: Array.isArray(template.data) ? template.data : [],
+      status: template.status === "active" || template.status === "draft" ? template.status : "draft",
+    }
+  }
+
+  const loadTemplates = async () => {
+    try {
+      setLoading(true)
+      const token = localStorage.getItem("authToken")
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true"
+      }
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`
+      }
+
+      const response = await fetch(`${API_BASE}/templates`, {
+        headers,
+        cache: "no-store",
+      })
+      if (response.ok) {
+        const data = await response.json()
+        const normalizedTemplates = Array.isArray(data) ? data.map(normalizeTemplate) : []
+        setTemplates(normalizedTemplates)
+      }
+    } catch (error) {
+      console.error("Error loading templates:", error)
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar las plantillas",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleCreateTemplate = () => {
     setIsCreateDialogOpen(true)
@@ -74,20 +116,88 @@ export default function TemplatesPage() {
     setIsEditDialogOpen(true)
   }
 
-  const handleDeleteTemplate = (templateId: string) => {
-    setTemplates(templates.filter((t) => t.id !== templateId))
+  const handleDeleteTemplate = async (templateId: string) => {
+    if (!confirm("¿Estás seguro de eliminar esta plantilla?")) return
+
+    try {
+      const token = localStorage.getItem("authToken")
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true"
+      }
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`
+      }
+
+      const response = await fetch(`${API_BASE}/templates/${templateId}`, {
+        method: "DELETE",
+        headers,
+      })
+
+      if (!response.ok) {
+        throw new Error("Error al eliminar la plantilla")
+      }
+
+      setTemplates(templates.filter((t) => t.id !== templateId))
+      toast({
+        title: "Plantilla eliminada",
+        description: "La plantilla se eliminó correctamente",
+      })
+    } catch (error: any) {
+      console.error("Error deleting template:", error)
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo eliminar la plantilla",
+        variant: "destructive",
+      })
+    }
   }
 
-  const handleDuplicateTemplate = (template: ExcelTemplate) => {
-    const newTemplate: ExcelTemplate = {
-      ...template,
-      id: Date.now().toString(),
-      name: `${template.name} (Copia)`,
-      status: "draft",
-      createdAt: new Date().toISOString().split("T")[0],
-      lastModified: new Date().toISOString().split("T")[0],
+  const handleDuplicateTemplate = async (template: ExcelTemplate) => {
+    try {
+      const token = localStorage.getItem("authToken")
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true"
+      }
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`
+      }
+
+      const newTemplate = {
+        name: `${template.name} (Copia)`,
+        description: template.description,
+        columns: template.columns,
+        rows: template.rows,
+        headers: template.headers,
+        data: template.data,
+        status: "draft",
+      }
+
+      const response = await fetch(`${API_BASE}/templates`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(newTemplate),
+      })
+
+      if (!response.ok) {
+        throw new Error("Error al duplicar la plantilla")
+      }
+
+      const createdTemplate = await response.json()
+      setTemplates([...templates, normalizeTemplate(createdTemplate)])
+      toast({
+        title: "Plantilla duplicada",
+        description: "La plantilla se duplicó correctamente",
+      })
+    } catch (error: any) {
+      console.error("Error duplicating template:", error)
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo duplicar la plantilla",
+        variant: "destructive",
+      })
     }
-    setTemplates([...templates, newTemplate])
   }
 
   return (
@@ -238,16 +348,16 @@ export default function TemplatesPage() {
                               <div className="space-y-2 mb-4 bg-muted/30 p-3 rounded-lg">
                                 <div className="flex justify-between text-xs">
                                   <span className="text-muted-foreground">Columnas de datos:</span>
-                                  <span className="font-medium text-primary">{template.columns}</span>
+                                  <span className="font-medium text-primary">{template.columns || 0}</span>
                                 </div>
                                 <div className="flex justify-between text-xs">
                                   <span className="text-muted-foreground">Campos configurados:</span>
-                                  <span className="font-medium text-primary">{template.headers.length}</span>
+                                  <span className="font-medium text-primary">{template.headers?.length || 0}</span>
                                 </div>
                                 <div className="flex justify-between text-xs">
                                   <span className="text-muted-foreground">Última modificación:</span>
                                   <span className="font-medium">
-                                    {new Date(template.lastModified).toLocaleDateString("es-AR")}
+                                    {template.lastModified ? new Date(template.lastModified).toLocaleDateString("es-AR") : "N/A"}
                                   </span>
                                 </div>
                               </div>
@@ -308,7 +418,10 @@ export default function TemplatesPage() {
             <DialogHeader>
               <DialogTitle>🎯 Crear Plantilla</DialogTitle>
             </DialogHeader>
-            <CreateTemplateForm onClose={() => setIsCreateDialogOpen(false)} />
+            <CreateTemplateForm
+              onClose={() => setIsCreateDialogOpen(false)}
+              onSuccess={loadTemplates}
+            />
           </DialogContent>
         </Dialog>
 
@@ -319,7 +432,11 @@ export default function TemplatesPage() {
             </DialogHeader>
             <div className="flex-1 overflow-hidden">
               {selectedTemplate && (
-                <EditTemplateForm template={selectedTemplate} onClose={() => setIsEditDialogOpen(false)} />
+                <EditTemplateForm
+                  template={selectedTemplate}
+                  onClose={() => setIsEditDialogOpen(false)}
+                  onSuccess={loadTemplates}
+                />
               )}
             </div>
           </DialogContent>
@@ -329,19 +446,71 @@ export default function TemplatesPage() {
   )
 }
 
-function CreateTemplateForm({ onClose }: { onClose: () => void }) {
+function CreateTemplateForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+  const { toast } = useToast()
   const [formData, setFormData] = useState({
     name: "",
     description: "",
     columns: 5,
     rows: 10,
   })
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // TODO: Create template logic
-    console.log("Creating template:", formData)
-    onClose()
+
+    try {
+      setIsSubmitting(true)
+      const token = localStorage.getItem("authToken")
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true"
+      }
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`
+      }
+
+      // Crear arrays de headers y data iniciales
+      const headers_array = Array(formData.columns).fill("").map((_, i) => `columna_${i + 1}`)
+      const data_array = Array(formData.rows).fill(null).map(() => Array(formData.columns).fill(""))
+
+      const templateData = {
+        name: formData.name,
+        description: formData.description,
+        columns: formData.columns,
+        rows: formData.rows,
+        headers: headers_array,
+        data: data_array,
+        status: "draft",
+      }
+
+      const response = await fetch(`${API_BASE}/templates`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(templateData),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.detail || "Error al crear la plantilla")
+      }
+
+      toast({
+        title: "Plantilla creada",
+        description: "La plantilla se creó correctamente",
+      })
+      onSuccess()
+      onClose()
+    } catch (error: any) {
+      console.error("Error creating template:", error)
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo crear la plantilla",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -420,12 +589,21 @@ function CreateTemplateForm({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="flex justify-end gap-3">
-          <Button type="button" variant="outline" onClick={onClose}>
+          <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
             Cancelar
           </Button>
-          <Button type="submit" className="bg-primary hover:bg-primary-hover">
-            <Plus className="w-4 h-4 mr-2" />
-            Crear Mi Formato
+          <Button type="submit" className="bg-primary hover:bg-primary-hover" disabled={isSubmitting}>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Creando...
+              </>
+            ) : (
+              <>
+                <Plus className="w-4 h-4 mr-2" />
+                Crear Mi Formato
+              </>
+            )}
           </Button>
         </div>
       </form>
@@ -433,13 +611,15 @@ function CreateTemplateForm({ onClose }: { onClose: () => void }) {
   )
 }
 
-function EditTemplateForm({ template, onClose }: { template: ExcelTemplate; onClose: () => void }) {
-  const [headers, setHeaders] = useState<string[]>(template.headers)
-  const [data, setData] = useState<string[][]>(template.data)
+function EditTemplateForm({ template, onClose, onSuccess }: { template: ExcelTemplate; onClose: () => void; onSuccess: () => void }) {
+  const { toast } = useToast()
+  const [headers, setHeaders] = useState<string[]>(template.headers || [])
+  const [data, setData] = useState<string[][]>(template.data || [])
   const [templateInfo, setTemplateInfo] = useState({
-    name: template.name,
-    description: template.description,
+    name: template.name || "",
+    description: template.description || "",
   })
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const updateHeader = (index: number, value: string) => {
     const newHeaders = [...headers]
@@ -486,6 +666,57 @@ function EditTemplateForm({ template, onClose }: { template: ExcelTemplate; onCl
       index = Math.floor(index / 26) - 1
     }
     return result
+  }
+
+  const handleSave = async () => {
+    try {
+      setIsSubmitting(true)
+      const token = localStorage.getItem("authToken")
+      const headers_api: HeadersInit = {
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true"
+      }
+      if (token) {
+        headers_api["Authorization"] = `Bearer ${token}`
+      }
+
+      const updatedTemplate = {
+        name: templateInfo.name,
+        description: templateInfo.description,
+        columns: headers.length,
+        rows: data.length,
+        headers: headers,
+        data: data,
+        status: "active", // Cuando se guarda, se marca como activa
+      }
+
+      const response = await fetch(`${API_BASE}/templates/${template.id}`, {
+        method: "PUT",
+        headers: headers_api,
+        body: JSON.stringify(updatedTemplate),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.detail || "Error al actualizar la plantilla")
+      }
+
+      toast({
+        title: "Plantilla actualizada",
+        description: "La plantilla se actualizó correctamente",
+      })
+      onSuccess()
+      onClose()
+    } catch (error: any) {
+      console.error("Error updating template:", error)
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo actualizar la plantilla",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -662,7 +893,7 @@ function EditTemplateForm({ template, onClose }: { template: ExcelTemplate; onCl
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Campos mapeados:</span>
                   <span className="text-sm font-medium">
-                    {data.flat().filter((cell) => cell.includes("{{")).length}
+                    {data.flat().filter((cell) => cell && typeof cell === 'string' && cell.includes("{{")).length}
                   </span>
                 </div>
               </CardContent>
@@ -672,12 +903,21 @@ function EditTemplateForm({ template, onClose }: { template: ExcelTemplate; onCl
       </Tabs>
 
       <div className="flex justify-end gap-3 pt-4 border-t flex-shrink-0">
-        <Button variant="outline" onClick={onClose}>
+        <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
           Cancelar
         </Button>
-        <Button className="bg-primary hover:bg-primary-hover">
-          <Save className="w-4 h-4 mr-2" />
-          Guardar Mi Formato
+        <Button className="bg-primary hover:bg-primary-hover" onClick={handleSave} disabled={isSubmitting}>
+          {isSubmitting ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Guardando...
+            </>
+          ) : (
+            <>
+              <Save className="w-4 h-4 mr-2" />
+              Guardar Mi Formato
+            </>
+          )}
         </Button>
       </div>
     </div>

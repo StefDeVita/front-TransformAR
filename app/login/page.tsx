@@ -28,7 +28,9 @@ export default function LoginPage() {
     try {
       const response = await fetch(`${API_BASE}/auth/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "true"
+         },
         body: JSON.stringify({ email, password }),
       })
 
@@ -38,8 +40,9 @@ export default function LoginPage() {
       }
 
       const data = await response.json()
+      console.log(data)
       // Save token to localStorage and cookie
-      const token = data.token || data.access_token
+      const token = data.token || data.access_token || data.authtoken
       localStorage.setItem("authToken", token)
       localStorage.setItem("userEmail", email)
       
@@ -63,7 +66,9 @@ export default function LoginPage() {
     try {
       const response = await fetch(`${API_BASE}/auth/recover-password`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "true"
+         },
         body: JSON.stringify({ email }),
       })
 
