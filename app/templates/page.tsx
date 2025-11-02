@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
 import { SidebarNavigation } from "@/components/sidebar-navigation"
 import { MainHeader } from "@/components/main-header"
@@ -47,12 +48,21 @@ interface ExcelTemplate {
 }
 
 export default function TemplatesPage() {
+  const router = useRouter()
   const { toast } = useToast()
   const [templates, setTemplates] = useState<ExcelTemplate[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState<ExcelTemplate | null>(null)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+
+  // Verificar autenticación
+  useEffect(() => {
+    const token = localStorage.getItem("authToken")
+    if (!token) {
+      router.push("/login")
+    }
+  }, [router])
 
   // Cargar plantillas del backend
   useEffect(() => {
@@ -164,7 +174,12 @@ export default function TemplatesPage() {
         headers["Authorization"] = `Bearer ${token}`
       }
 
+      // Generar nuevo ID para la plantilla duplicada
+      const newId = `tpl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      const now = new Date().toISOString().split("T")[0]
+
       const newTemplate = {
+        id: newId,
         name: `${template.name} (Copia)`,
         description: template.description,
         columns: template.columns,
@@ -172,6 +187,8 @@ export default function TemplatesPage() {
         headers: template.headers,
         data: template.data,
         status: "draft",
+        createdAt: now,
+        lastModified: now,
       }
 
       const response = await fetch(`${API_BASE}/templates`, {
@@ -474,7 +491,12 @@ function CreateTemplateForm({ onClose, onSuccess }: { onClose: () => void; onSuc
       const headers_array = Array(formData.columns).fill("").map((_, i) => `columna_${i + 1}`)
       const data_array = Array(formData.rows).fill(null).map(() => Array(formData.columns).fill(""))
 
+      // Generar ID único para la nueva plantilla
+      const newId = `tpl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      const now = new Date().toISOString().split("T")[0]
+
       const templateData = {
+        id: newId,
         name: formData.name,
         description: formData.description,
         columns: formData.columns,
@@ -482,6 +504,8 @@ function CreateTemplateForm({ onClose, onSuccess }: { onClose: () => void; onSuc
         headers: headers_array,
         data: data_array,
         status: "draft",
+        createdAt: now,
+        lastModified: now,
       }
 
       const response = await fetch(`${API_BASE}/templates`, {
@@ -681,6 +705,7 @@ function EditTemplateForm({ template, onClose, onSuccess }: { template: ExcelTem
       }
 
       const updatedTemplate = {
+        id: template.id, // Importante: incluir el ID para que el backend haga update
         name: templateInfo.name,
         description: templateInfo.description,
         columns: headers.length,
@@ -688,10 +713,13 @@ function EditTemplateForm({ template, onClose, onSuccess }: { template: ExcelTem
         headers: headers,
         data: data,
         status: "active", // Cuando se guarda, se marca como activa
+        createdAt: template.createdAt,
+        lastModified: new Date().toISOString().split("T")[0],
       }
 
-      const response = await fetch(`${API_BASE}/templates/${template.id}`, {
-        method: "PUT",
+      // El backend usa POST para upsert (crear o actualizar)
+      const response = await fetch(`${API_BASE}/templates`, {
+        method: "POST",
         headers: headers_api,
         body: JSON.stringify(updatedTemplate),
       })
