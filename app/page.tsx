@@ -257,14 +257,30 @@ export default function HomePage() {
   // Descargar archivo de Telegram
   const downloadTelegramFile = async (fileId: string, filename: string, token: string | null) => {
     try {
+      console.log("=== Descargando archivo de Telegram ===")
+      console.log("File ID:", fileId)
+      console.log("Filename:", filename)
+      console.log("API URL:", `${API_BASE}/input/telegram/file/${fileId}`)
+
       const headers: HeadersInit = {}
       if (token) {
         headers["Authorization"] = `Bearer ${token}`
       }
+
       const response = await fetch(`${API_BASE}/input/telegram/file/${fileId}`, { headers })
-      if (!response.ok) throw new Error("Error descargando archivo de Telegram")
+      console.log("Response status:", response.status)
+      console.log("Response ok:", response.ok)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error("Error response:", errorText)
+        throw new Error("Error descargando archivo de Telegram: " + errorText)
+      }
+
       const blob = await response.blob()
+      console.log("Blob descargado:", blob.size, "bytes, tipo:", blob.type)
       setDownloadedFile({ blob, filename })
+      console.log("Archivo guardado en estado")
     } catch (e) {
       console.error("Error descargando archivo de Telegram:", e)
     }
@@ -350,19 +366,30 @@ export default function HomePage() {
         const fileId = detail.document?.file_id || detail.photo?.file_id || detail.video?.file_id || detail.audio?.file_id
         const fileName = detail.document?.file_name || detail.video?.file_name || detail.audio?.file_name || "file"
 
+        console.log("Telegram detail:", detail)
+        console.log("File ID:", fileId)
+        console.log("File name:", fileName)
+        console.log("Has text:", !!detail.text)
+
         // Si solo hay adjunto (sin texto), seleccionar archivo y descargarlo
         if (fileId && !detail.text) {
+          console.log("Caso 1: Solo archivo, descargando...")
           shouldUseText = false
           await downloadTelegramFile(fileId, fileName, token)
         }
         // Si solo hay texto (sin adjunto), seleccionar texto
         else if (detail.text && !fileId) {
+          console.log("Caso 2: Solo texto")
           shouldUseText = true
         }
         // Si hay ambos, default a archivo
         else if (detail.text && fileId) {
+          console.log("Caso 3: Texto y archivo, descargando archivo...")
           shouldUseText = false
           await downloadTelegramFile(fileId, fileName, token)
+        }
+        else {
+          console.log("Caso 4: Sin contenido disponible")
         }
       } else {
         // Gmail/Outlook: default a texto si existe
