@@ -112,9 +112,13 @@ export default function ProcessedPage() {
         const token = localStorage.getItem("authToken")
         const headers: HeadersInit = {
           "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "true"
+
         }
         if (token) {
           headers["Authorization"] = `Bearer ${token}`
+          headers["ngrok-skip-browser-warning"]= "true"
+
         }
 
         // Load logs and stats in parallel
