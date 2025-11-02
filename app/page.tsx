@@ -231,6 +231,7 @@ export default function HomePage() {
       const headers: HeadersInit = {}
       if (token) {
         headers["Authorization"] = `Bearer ${token}`
+        headers["ngrok-skip-browser-warning"]= "true"
       }
       const response = await fetch(`${API_BASE}/input/whatsapp/media/${mediaId}`, { headers })
       if (!response.ok) throw new Error("Error descargando archivo de WhatsApp")
