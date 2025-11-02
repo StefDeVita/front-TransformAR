@@ -77,6 +77,16 @@ export default function TemplatesPage() {
     loadTemplates()
   }, [])
 
+  // Normalizar template para asegurar que tenga la estructura correcta
+  const normalizeTemplate = (template: any): GridTemplate => {
+    return {
+      id: template.id || "",
+      name: template.name || "Sin nombre",
+      description: template.description || "",
+      columns: Array.isArray(template.columns) ? template.columns : [],
+    }
+  }
+
   const loadTemplates = async () => {
     try {
       setLoading(true)
@@ -94,7 +104,8 @@ export default function TemplatesPage() {
       })
       if (response.ok) {
         const data = await response.json()
-        setTemplates(Array.isArray(data) ? data : [])
+        const normalizedTemplates = Array.isArray(data) ? data.map(normalizeTemplate) : []
+        setTemplates(normalizedTemplates)
       }
     } catch (error) {
       console.error("Error loading templates:", error)
@@ -182,7 +193,7 @@ export default function TemplatesPage() {
       }
 
       const createdTemplate = await response.json()
-      setTemplates([...templates, createdTemplate])
+      setTemplates([...templates, normalizeTemplate(createdTemplate)])
       toast({
         title: "Plantilla duplicada",
         description: "La plantilla se duplicó correctamente",
