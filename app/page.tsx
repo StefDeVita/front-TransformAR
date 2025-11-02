@@ -212,6 +212,12 @@ export default function HomePage() {
             headers
           })
           const d = await r.json()
+          console.log("=== Respuesta de /input/telegram/messages ===")
+          console.log("Full response:", d)
+          console.log("Messages:", d.messages)
+          if (d.messages && d.messages.length > 0) {
+            console.log("First message structure:", d.messages[0])
+          }
           setTelegramList(d.messages || [])
         }
       } catch (e) {
