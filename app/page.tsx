@@ -306,7 +306,18 @@ export default function HomePage() {
         const message = telegramList.find(m => m.id === id)
         if (!message) throw new Error("Mensaje no encontrado")
 
+        console.log("=== Mensaje de Telegram seleccionado ===")
+        console.log("Mensaje original:", message)
+        console.log("Message ID:", message.id)
+        console.log("Message type:", message.type)
+        console.log("Has document:", !!message.document)
+        console.log("Has photo:", !!message.photo)
+        console.log("Has video:", !!message.video)
+        console.log("Has audio:", !!message.audio)
+        console.log("Text:", message.text)
+
         // Llamar al endpoint /input/telegram/content para obtener contenido procesado
+        console.log("Enviando al endpoint /input/telegram/content:", JSON.stringify(message, null, 2))
         const contentResponse = await fetch(`${API_BASE}/input/telegram/content`, {
           method: "POST",
           headers,
@@ -314,7 +325,9 @@ export default function HomePage() {
         })
 
         if (!contentResponse.ok) {
-          throw new Error("Error obteniendo contenido de Telegram")
+          const errorText = await contentResponse.text()
+          console.error("Error response:", errorText)
+          throw new Error("Error obteniendo contenido de Telegram: " + errorText)
         }
 
         const contentData = await contentResponse.json()
