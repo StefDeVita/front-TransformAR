@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
 import { SidebarNavigation } from "@/components/sidebar-navigation"
 import { MainHeader } from "@/components/main-header"
@@ -22,7 +23,10 @@ import {
   RefreshCw,
   Filter,
   TrendingUp,
+  Loader2,
 } from "lucide-react"
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 
 interface ProcessingJob {
   id: string
@@ -39,73 +43,14 @@ interface ProcessingJob {
   errorMessage?: string
 }
 
-const mockJobs: ProcessingJob[] = [
-  {
-    id: "1",
-    fileName: "solicitud_lucia_gomez_marzo.docx",
-    fileType: "document",
-    status: "completed",
-    progress: 100,
-    startTime: "2024-01-20 14:30:00",
-    endTime: "2024-01-20 14:32:15",
-    duration: "2m 15s",
-    extractedFields: 12,
-    totalFields: 12,
-    template: "Reporte de Ventas",
-  },
-  {
-    id: "2",
-    fileName: "pedido-express_farmacia_centro.docx",
-    fileType: "document",
-    status: "completed",
-    progress: 100,
-    startTime: "2025-07-10 14:30:00",
-    endTime: "2025-07-10 14:32:15",
-    duration: "1m 15s",
-    extractedFields: 2,
-    totalFields: 12,
-    template: "Inventario de Productos",
-  },
-  {
-    id: "3",
-    fileName: "cotizacion_muebles_la_esquina_enero.pdf",
-    fileType: "pdf",
-    status: "completed",
-    progress: 100,
-    startTime: "2024-01-20 13:15:00",
-    endTime: "2024-01-20 13:18:45",
-    duration: "3m 45s",
-    extractedFields: 18,
-    totalFields: 18,
-    template: "Facturación Clientes",
-  },
-  {
-    id: "4",
-    fileName: "inventario_productos_enero.xlsx",
-    fileType: "spreadsheet",
-    status: "failed",
-    progress: 0,
-    startTime: "2024-01-20 16:00:00",
-    endTime: "2024-01-20 16:01:30",
-    duration: "1m 30s",
-    extractedFields: 0,
-    totalFields: 20,
-    errorMessage: "Error de formato: No se pudo leer la estructura del archivo",
-  },
-  {
-    id: "5",
-    fileName: "facturas_diciembre_2023.pdf",
-    fileType: "pdf",
-    status: "completed",
-    progress: 100,
-    startTime: "2024-01-20 16:15:00",
-    endTime: "2024-01-20 13:18:45",
-    duration: "1m 45s",
-    extractedFields: 2,
-    totalFields: 25,
-    template: "Facturación Clientes",
-  },
-]
+interface Stats {
+  total: number
+  completed: number
+  failed: number
+  processing: number
+  queued: number
+  successRate: number
+}
 
 const getStatusIcon = (status: string) => {
   switch (status) {
@@ -134,24 +79,91 @@ const getStatusBadge = (status: string) => {
 }
 
 export default function ProcessedPage() {
-  const [jobs, setJobs] = useState<ProcessingJob[]>(mockJobs)
+  const router = useRouter()
+  const [jobs, setJobs] = useState<ProcessingJob[]>([])
+  const [stats, setStats] = useState<Stats>({
+    total: 0,
+    completed: 0,
+    failed: 0,
+    processing: 0,
+    queued: 0,
+    successRate: 0
+  })
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [timeFilter, setTimeFilter] = useState<string>("today")
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // Check authentication
+  useEffect(() => {
+    const token = localStorage.getItem("authToken")
+    if (!token) {
+      router.push("/login")
+    }
+  }, [router])
+
+  // Load data from backend
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+
+        const token = localStorage.getItem("authToken")
+        const headers: HeadersInit = {
+          "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "true"
+
+        }
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`
+          headers["ngrok-skip-browser-warning"]= "true"
+
+        }
+
+        // Load logs and stats in parallel
+        const [logsResponse, statsResponse] = await Promise.all([
+          fetch(`${API_BASE}/logs/transformations?limit=50${statusFilter !== 'all' ? `&status=${statusFilter}` : ''}`, {
+            headers,
+            cache: "no-store"
+          }),
+          fetch(`${API_BASE}/logs/transformations/stats`, {
+            headers,
+            cache: "no-store"
+          })
+        ])
+
+        if (!logsResponse.ok || !statsResponse.ok) {
+          throw new Error("Error cargando datos")
+        }
+
+        const logsData = await logsResponse.json()
+        const statsData = await statsResponse.json()
+
+        setJobs(logsData.logs || [])
+        setStats(statsData.stats || {
+          total: 0,
+          completed: 0,
+          failed: 0,
+          processing: 0,
+          queued: 0,
+          successRate: 0
+        })
+      } catch (e: any) {
+        console.error("Error loading processed data:", e)
+        setError(e.message || "Error cargando datos")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadData()
+  }, [statusFilter])
 
   const filteredJobs = jobs.filter((job) => {
     if (statusFilter !== "all" && job.status !== statusFilter) return false
     return true
   })
-
-  const stats = {
-    total: jobs.length,
-    completed: jobs.filter((j) => j.status === "completed").length,
-    processing: jobs.filter((j) => j.status === "processing").length,
-    failed: jobs.filter((j) => j.status === "failed").length,
-    queued: jobs.filter((j) => j.status === "queued").length,
-  }
-
-  const successRate = stats.total > 0 ? Math.round((stats.completed / (stats.completed + stats.failed)) * 100) : 0
 
   return (
     <div className="flex h-screen bg-background">
@@ -167,8 +179,31 @@ export default function ProcessedPage() {
             transition={{ duration: 0.5 }}
             className="max-w-7xl mx-auto space-y-6"
           >
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {/* Loading State */}
+            {loading && (
+              <div className="flex items-center justify-center h-64">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <span className="ml-2 text-muted-foreground">Cargando datos...</span>
+              </div>
+            )}
+
+            {/* Error State */}
+            {error && !loading && (
+              <Card className="border-red-200 bg-red-50">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 text-red-700">
+                    <AlertTriangle className="w-5 h-5" />
+                    <span className="font-medium">Error: {error}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Data Content */}
+            {!loading && !error && (
+              <>
+                {/* Stats Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               <Card>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
@@ -252,8 +287,15 @@ export default function ProcessedPage() {
                     <CardTitle className="text-lg font-semibold">Trabajos de Procesamiento</CardTitle>
                   </CardHeader>
                   <CardContent className="p-0">
-                    <div className="divide-y divide-border">
-                      {filteredJobs.map((job, index) => (
+                    {filteredJobs.length === 0 ? (
+                      <div className="p-8 text-center text-muted-foreground">
+                        <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p className="font-medium">No hay trabajos procesados</p>
+                        <p className="text-sm">Los trabajos aparecerán aquí una vez que proceses documentos</p>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-border">
+                        {filteredJobs.map((job, index) => (
                         <motion.div
                           key={job.id}
                           initial={{ opacity: 0, y: 20 }}
@@ -301,11 +343,14 @@ export default function ProcessedPage() {
                           )}
                         </motion.div>
                       ))}
-                    </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </TabsContent>
             </Tabs>
+              </>
+            )}
           </motion.div>
         </main>
       </div>

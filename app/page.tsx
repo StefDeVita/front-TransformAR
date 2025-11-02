@@ -259,6 +259,8 @@ export default function HomePage() {
       const headers: HeadersInit = {}
       if (token) {
         headers["Authorization"] = `Bearer ${token}`
+        headers["ngrok-skip-browser-warning"]= "true"
+
       }
 
       const response = await fetch(`${API_BASE}/input/telegram/file/${fileId}`, { headers })
