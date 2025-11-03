@@ -711,7 +711,7 @@ export default function HomePage() {
                 <div className="rounded-lg bg-muted/40 p-4 text-sm">
                   <div className="flex items-start gap-2">
                     <Lightbulb className="w-4 h-4 mt-0.5 text-yellow-500" />
-                    <p>Seleccioná el tipo de documento. Por ejemplo: facturas en PDF, correos de clientes, o mensajes.</p>
+                    <p>Seleccioná de donde querés extraer los documentos. Por ejemplo: desde un correo, un archivo en tu computadora o apps de mensajería instantánea.</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -720,7 +720,7 @@ export default function HomePage() {
                       <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center"><FileText className="w-5 h-5 text-primary" /></div>
                       <div>
                         <div className="font-medium">Documentos</div>
-                        <div className="text-xs text-muted-foreground">Facturas, contratos, reportes</div>
+                        <div className="text-xs text-muted-foreground">Cargar archivos de tu PC</div>
                       </div>
                     </div>
                   </button>
@@ -729,7 +729,7 @@ export default function HomePage() {
                       <div className="w-10 h-10 rounded-lg bg-rose-200/40 flex items-center justify-center"><Mail className="w-5 h-5" /></div>
                       <div>
                         <div className="font-medium">Gmail</div>
-                        <div className="text-xs text-muted-foreground">Correos de clientes, pedidos</div>
+                        <div className="text-xs text-muted-foreground">Correos de tu bandeja de entrada</div>
                       </div>
                     </div>
                   </button>
@@ -738,25 +738,7 @@ export default function HomePage() {
                       <div className="w-10 h-10 rounded-lg bg-blue-200/40 flex items-center justify-center"><Send className="w-5 h-5" /></div>
                       <div>
                         <div className="font-medium">Outlook</div>
-                        <div className="text-xs text-muted-foreground">Correos corporativos</div>
-                      </div>
-                    </div>
-                  </button>
-                  <button onClick={()=>handlePickSource("whatsapp")} className={`text-left rounded-xl border p-4 hover:shadow transition ${source==="whatsapp"?"bg-primary/10 border-primary":"bg-card"}`}>
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-green-200/40 flex items-center justify-center"><MessageSquare className="w-5 h-5 text-green-600" /></div>
-                      <div>
-                        <div className="font-medium">WhatsApp</div>
-                        <div className="text-xs text-muted-foreground">Mensajes de clientes</div>
-                      </div>
-                    </div>
-                  </button>
-                  <button onClick={()=>handlePickSource("telegram")} className={`text-left rounded-xl border p-4 hover:shadow transition ${source==="telegram"?"bg-primary/10 border-primary":"bg-card"}`}>
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-sky-200/40 flex items-center justify-center"><Phone className="w-5 h-5 text-sky-600" /></div>
-                      <div>
-                        <div className="font-medium">Telegram</div>
-                        <div className="text-xs text-muted-foreground">Chats y mensajes</div>
+                        <div className="text-xs text-muted-foreground">Correos de tu bandeja de entrada</div>
                       </div>
                     </div>
                   </button>
@@ -766,6 +748,24 @@ export default function HomePage() {
                       <div>
                         <div className="font-medium">Texto Simple</div>
                         <div className="text-xs text-muted-foreground">Notas, descripciones</div>
+                      </div>
+                    </div>
+                  </button>
+                  <button onClick={()=>handlePickSource("whatsapp")} className={`text-left rounded-xl border p-4 hover:shadow transition ${source==="whatsapp"?"bg-primary/10 border-primary":"bg-card"}`}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-green-200/40 flex items-center justify-center"><MessageSquare className="w-5 h-5 text-green-600" /></div>
+                      <div>
+                        <div className="font-medium">WhatsApp</div>
+                        <div className="text-xs text-muted-foreground">Chats, imagenes y documentos</div>
+                      </div>
+                    </div>
+                  </button>
+                  <button onClick={()=>handlePickSource("telegram")} className={`text-left rounded-xl border p-4 hover:shadow transition ${source==="telegram"?"bg-primary/10 border-primary":"bg-card"}`}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-sky-200/40 flex items-center justify-center"><Phone className="w-5 h-5 text-sky-600" /></div>
+                      <div>
+                        <div className="font-medium">Telegram</div>
+                        <div className="text-xs text-muted-foreground">Chats, imagenes y documentos</div>
                       </div>
                     </div>
                   </button>
