@@ -884,7 +884,7 @@ export default function HomePage() {
                             <Loader2 className="w-4 h-4 animate-spin" /> Cargando contenido…
                           </div>
                         ) : !emailDetail ? (
-                          <div className="text-sm text-muted-foreground">Seleccioná un mensaje…</div>
+                          sourceConnected && <div className="text-sm text-muted-foreground">Seleccioná un mensaje…</div>
                         ) : (
                           <>
                             <div className="flex items-center gap-4 text-sm">
@@ -954,7 +954,7 @@ export default function HomePage() {
                             <Loader2 className="w-4 h-4 animate-spin" /> Cargando contenido…
                           </div>
                         ) : !emailDetail ? (
-                          <div className="text-sm text-muted-foreground">Seleccioná un mensaje…</div>
+                          sourceConnected && <div className="text-sm text-muted-foreground">Seleccioná un mensaje…</div>
                         ) : (
                           <>
                             <div className="flex items-center gap-4 text-sm">
@@ -1028,7 +1028,7 @@ export default function HomePage() {
                             <Loader2 className="w-4 h-4 animate-spin" /> Cargando contenido…
                           </div>
                         ) : !emailDetail ? (
-                          <div className="text-sm text-muted-foreground">Seleccioná un mensaje…</div>
+                          sourceConnected && <div className="text-sm text-muted-foreground">Seleccioná un mensaje…</div>
                         ) : (
                           <>
                             {/* Solo mostrar opciones si hay tanto texto como archivo */}
@@ -1129,7 +1129,7 @@ export default function HomePage() {
                             <Loader2 className="w-4 h-4 animate-spin" /> Cargando contenido…
                           </div>
                         ) : !emailDetail ? (
-                          <div className="text-sm text-muted-foreground">Seleccioná un mensaje…</div>
+                          sourceConnected && <div className="text-sm text-muted-foreground">Seleccioná un mensaje…</div>
                         ) : (
                           <>
                             {(() => {
