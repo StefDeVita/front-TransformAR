@@ -8,7 +8,7 @@ import { MainHeader } from "@/components/main-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
@@ -1214,10 +1214,20 @@ export default function HomePage() {
                 <CardContent>
                   <div className="max-w-md">
                     <Label className="text-sm">Plantilla</Label>
-                    <Select value={templateId} onValueChange={(v)=> setTemplateId(v)}>
+                    <Select value={templateId} onValueChange={(v)=> {
+                      if (v === "create-new") {
+                        router.push("/templates")
+                      } else {
+                        setTemplateId(v)
+                      }
+                    }}>
                       <SelectTrigger className="mt-1"><SelectValue placeholder="Elegí una plantilla" /></SelectTrigger>
                       <SelectContent>
                         {templates.map(t => (<SelectItem key={t.id} value={t.id}>{t.name}{t.description?` — ${t.description}`:""}</SelectItem>))}
+                        {templates.length > 0 && <SelectSeparator />}
+                        <SelectItem value="create-new" className="text-primary font-medium">
+                          + Crear nueva plantilla
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
