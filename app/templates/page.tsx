@@ -62,6 +62,8 @@ export default function TemplatesPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<GridTemplate | null>(null)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [templateToDelete, setTemplateToDelete] = useState<GridTemplate | null>(null)
   const [loading, setLoading] = useState(false)
 
   // Verificar autenticación
@@ -130,8 +132,13 @@ export default function TemplatesPage() {
     setIsEditDialogOpen(true)
   }
 
-  const handleDeleteTemplate = async (templateId: string) => {
-    if (!confirm("¿Estás seguro de eliminar esta plantilla?")) return
+  const handleDeleteTemplate = (template: GridTemplate) => {
+    setTemplateToDelete(template)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!templateToDelete) return
 
     try {
       const token = localStorage.getItem("authToken")
@@ -141,7 +148,7 @@ export default function TemplatesPage() {
         headers["ngrok-skip-browser-warning"]= "true"
       }
 
-      const response = await fetch(`${API_BASE}/templates/${templateId}`, {
+      const response = await fetch(`${API_BASE}/templates/${templateToDelete.id}`, {
         method: "DELETE",
         headers,
       })
@@ -150,11 +157,13 @@ export default function TemplatesPage() {
         throw new Error("Error al eliminar la plantilla")
       }
 
-      setTemplates(templates.filter((t) => t.id !== templateId))
+      setTemplates(templates.filter((t) => t.id !== templateToDelete.id))
       toast({
         title: "Plantilla eliminada",
         description: "La plantilla se eliminó correctamente",
       })
+      setIsDeleteDialogOpen(false)
+      setTemplateToDelete(null)
     } catch (error: any) {
       console.error("Error deleting template:", error)
       toast({
@@ -396,7 +405,7 @@ export default function TemplatesPage() {
                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      onClick={() => handleDeleteTemplate(template.id)}
+                                      onClick={() => handleDeleteTemplate(template)}
                                       className="text-destructive hover:bg-destructive/10"
                                     >
                                       <Trash2 className="w-3 h-3" />
@@ -443,6 +452,49 @@ export default function TemplatesPage() {
                 onSuccess={loadTemplates}
               />
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog de Confirmar Eliminación */}
+        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-destructive">
+                <Trash2 className="w-5 h-5" />
+                Eliminar Plantilla
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-4">
+                <p className="text-sm text-foreground">
+                  ¿Estás seguro de que querés eliminar la plantilla{" "}
+                  <span className="font-semibold">{templateToDelete?.name}</span>?
+                </p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Esta acción no se puede deshacer.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsDeleteDialogOpen(false)
+                    setTemplateToDelete(null)
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={confirmDelete}
+                  className="bg-destructive hover:bg-destructive/90"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Eliminar Plantilla
+                </Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
