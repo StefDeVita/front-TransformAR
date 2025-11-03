@@ -101,7 +101,7 @@ export default function HomePage() {
   const [openStep, setOpenStep] = useState<1 | 2 | 3>(1)
 
   // Fuente
-  const [source, setSource] = useState<"document" | "gmail" | "outlook" | "text" | "whatsapp" | "telegram">("document")
+  const [source, setSource] = useState<"document" | "gmail" | "outlook" | "text" | "whatsapp" | "telegram" | "">("")
 
   // Plantillas (último paso)
   const [templates, setTemplates] = useState<TemplateMeta[]>([])
