@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Loader2, Lightbulb, FileText, Mail, Send, MessageSquare, Phone } from "lucide-react"
+import { Loader2, Lightbulb, FileText, Mail, Send, MessageSquare, Phone, AlertCircle } from "lucide-react"
 
 type TemplateMeta = { id: string; name: string; description?: string | null }
 type GmailMsg = { id: string; from?: string; subject?: string }
@@ -126,6 +126,10 @@ export default function HomePage() {
   const [loadingList, setLoadingList] = useState<boolean>(false)
   const [loadingDetail, setLoadingDetail] = useState<boolean>(false)
 
+  // Estado de conexión de la fuente
+  const [sourceConnected, setSourceConnected] = useState<boolean>(true)
+  const [checkingConnection, setCheckingConnection] = useState<boolean>(false)
+
   // Procesamiento
   const [isProcessing, setIsProcessing] = useState(false)
 
@@ -163,8 +167,40 @@ export default function HomePage() {
     setFreeText("")
     setSelectedMsgId("")
     setEmailDetail(null)
+    setSourceConnected(true) // reset connection status
     // abrir Paso 2
     setOpenStep(2)
+  }
+
+  // Verificar si la fuente está conectada
+  const checkSourceConnection = async (sourceType: "gmail" | "outlook" | "whatsapp" | "telegram"): Promise<boolean> => {
+    try {
+      setCheckingConnection(true)
+      const token = localStorage.getItem("authToken")
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true"
+      }
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`
+      }
+
+      const response = await fetch(`${API_BASE}/integration/${sourceType}/status`, {
+        headers,
+        cache: "no-store",
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        return data.connected || false
+      }
+      return false
+    } catch (error) {
+      console.error(`Error checking ${sourceType} connection:`, error)
+      return false
+    } finally {
+      setCheckingConnection(false)
+    }
   }
 
   // Cargar listas cuando estoy en Paso 2 y la fuente es correo/mensajería
@@ -174,6 +210,18 @@ export default function HomePage() {
         setLoadingList(true)
         setSelectedMsgId("")
         setEmailDetail(null)
+
+        // Verificar primero si la fuente está conectada
+        if (source === "gmail" || source === "outlook" || source === "whatsapp" || source === "telegram") {
+          const connected = await checkSourceConnection(source)
+          setSourceConnected(connected)
+
+          // Si no está conectada, no intentar cargar mensajes
+          if (!connected) {
+            setLoadingList(false)
+            return
+          }
+        }
 
         // Obtener el token de autenticación
         const token = localStorage.getItem("authToken")
@@ -802,9 +850,24 @@ export default function HomePage() {
                   {source === "gmail" && (
                     <div className="grid md:grid-cols-2 gap-3">
                       <div className="border rounded-lg h-56 overflow-auto">
-                        {loadingList ? (
+                        {loadingList || checkingConnection ? (
                           <div className="h-full flex items-center justify-center text-sm text-muted-foreground gap-2">
-                            <Loader2 className="w-4 h-4 animate-spin" /> Cargando mensajes…
+                            <Loader2 className="w-4 h-4 animate-spin" /> {checkingConnection ? "Verificando conexión…" : "Cargando mensajes…"}
+                          </div>
+                        ) : !sourceConnected ? (
+                          <div className="h-full flex flex-col items-center justify-center p-4 text-center">
+                            <AlertCircle className="w-12 h-12 text-yellow-500 mb-3" />
+                            <p className="text-sm font-medium text-foreground mb-2">Gmail no está conectado</p>
+                            <p className="text-xs text-muted-foreground mb-3">
+                              Para seleccionar mensajes de Gmail, primero necesitas conectar tu cuenta.
+                            </p>
+                            <Button
+                              size="sm"
+                              onClick={() => router.push("/settings")}
+                              className="text-xs"
+                            >
+                              Ir a Configuración
+                            </Button>
                           </div>
                         ) : (
                           (gmailList || []).map(m => (
@@ -821,7 +884,7 @@ export default function HomePage() {
                             <Loader2 className="w-4 h-4 animate-spin" /> Cargando contenido…
                           </div>
                         ) : !emailDetail ? (
-                          <div className="text-sm text-muted-foreground">Seleccioná un mensaje…</div>
+                          sourceConnected && <div className="text-sm text-muted-foreground">Seleccioná un mensaje…</div>
                         ) : (
                           <>
                             <div className="flex items-center gap-4 text-sm">
@@ -857,9 +920,24 @@ export default function HomePage() {
                   {source === "outlook" && (
                     <div className="grid md:grid-cols-2 gap-3">
                       <div className="border rounded-lg h-56 overflow-auto">
-                        {loadingList ? (
+                        {loadingList || checkingConnection ? (
                           <div className="h-full flex items-center justify-center text-sm text-muted-foreground gap-2">
-                            <Loader2 className="w-4 h-4 animate-spin" /> Cargando mensajes…
+                            <Loader2 className="w-4 h-4 animate-spin" /> {checkingConnection ? "Verificando conexión…" : "Cargando mensajes…"}
+                          </div>
+                        ) : !sourceConnected ? (
+                          <div className="h-full flex flex-col items-center justify-center p-4 text-center">
+                            <AlertCircle className="w-12 h-12 text-yellow-500 mb-3" />
+                            <p className="text-sm font-medium text-foreground mb-2">Outlook no está conectado</p>
+                            <p className="text-xs text-muted-foreground mb-3">
+                              Para seleccionar mensajes de Outlook, primero necesitas conectar tu cuenta.
+                            </p>
+                            <Button
+                              size="sm"
+                              onClick={() => router.push("/settings")}
+                              className="text-xs"
+                            >
+                              Ir a Configuración
+                            </Button>
                           </div>
                         ) : (
                           (outlookList || []).map(m => (
@@ -876,7 +954,7 @@ export default function HomePage() {
                             <Loader2 className="w-4 h-4 animate-spin" /> Cargando contenido…
                           </div>
                         ) : !emailDetail ? (
-                          <div className="text-sm text-muted-foreground">Seleccioná un mensaje…</div>
+                          sourceConnected && <div className="text-sm text-muted-foreground">Seleccioná un mensaje…</div>
                         ) : (
                           <>
                             <div className="flex items-center gap-4 text-sm">
@@ -912,9 +990,24 @@ export default function HomePage() {
                   {source === "whatsapp" && (
                     <div className="grid md:grid-cols-2 gap-3">
                       <div className="border rounded-lg h-56 overflow-auto">
-                        {loadingList ? (
+                        {loadingList || checkingConnection ? (
                           <div className="h-full flex items-center justify-center text-sm text-muted-foreground gap-2">
-                            <Loader2 className="w-4 h-4 animate-spin" /> Cargando mensajes…
+                            <Loader2 className="w-4 h-4 animate-spin" /> {checkingConnection ? "Verificando conexión…" : "Cargando mensajes…"}
+                          </div>
+                        ) : !sourceConnected ? (
+                          <div className="h-full flex flex-col items-center justify-center p-4 text-center">
+                            <AlertCircle className="w-12 h-12 text-yellow-500 mb-3" />
+                            <p className="text-sm font-medium text-foreground mb-2">WhatsApp no está conectado</p>
+                            <p className="text-xs text-muted-foreground mb-3">
+                              Para seleccionar mensajes de WhatsApp, primero necesitas conectar tu cuenta.
+                            </p>
+                            <Button
+                              size="sm"
+                              onClick={() => router.push("/settings")}
+                              className="text-xs"
+                            >
+                              Ir a Configuración
+                            </Button>
                           </div>
                         ) : (
                           (whatsappList || []).map(m => (
@@ -935,7 +1028,7 @@ export default function HomePage() {
                             <Loader2 className="w-4 h-4 animate-spin" /> Cargando contenido…
                           </div>
                         ) : !emailDetail ? (
-                          <div className="text-sm text-muted-foreground">Seleccioná un mensaje…</div>
+                          sourceConnected && <div className="text-sm text-muted-foreground">Seleccioná un mensaje…</div>
                         ) : (
                           <>
                             {/* Solo mostrar opciones si hay tanto texto como archivo */}
@@ -996,9 +1089,24 @@ export default function HomePage() {
                   {source === "telegram" && (
                     <div className="grid md:grid-cols-2 gap-3">
                       <div className="border rounded-lg h-56 overflow-auto">
-                        {loadingList ? (
+                        {loadingList || checkingConnection ? (
                           <div className="h-full flex items-center justify-center text-sm text-muted-foreground gap-2">
-                            <Loader2 className="w-4 h-4 animate-spin" /> Cargando mensajes…
+                            <Loader2 className="w-4 h-4 animate-spin" /> {checkingConnection ? "Verificando conexión…" : "Cargando mensajes…"}
+                          </div>
+                        ) : !sourceConnected ? (
+                          <div className="h-full flex flex-col items-center justify-center p-4 text-center">
+                            <AlertCircle className="w-12 h-12 text-yellow-500 mb-3" />
+                            <p className="text-sm font-medium text-foreground mb-2">Telegram no está conectado</p>
+                            <p className="text-xs text-muted-foreground mb-3">
+                              Para seleccionar mensajes de Telegram, primero necesitas conectar tu bot.
+                            </p>
+                            <Button
+                              size="sm"
+                              onClick={() => router.push("/settings")}
+                              className="text-xs"
+                            >
+                              Ir a Configuración
+                            </Button>
                           </div>
                         ) : (
                           (telegramList || []).map(m => {
@@ -1021,7 +1129,7 @@ export default function HomePage() {
                             <Loader2 className="w-4 h-4 animate-spin" /> Cargando contenido…
                           </div>
                         ) : !emailDetail ? (
-                          <div className="text-sm text-muted-foreground">Seleccioná un mensaje…</div>
+                          sourceConnected && <div className="text-sm text-muted-foreground">Seleccioná un mensaje…</div>
                         ) : (
                           <>
                             {(() => {
