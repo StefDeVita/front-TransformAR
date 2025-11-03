@@ -50,6 +50,7 @@ import { CSS } from "@dnd-kit/utilities"
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 
 interface GridColumn {
+  id?: string  // ID único para drag and drop
   col: string  // Letra de columna: "A", "B", "C", etc.
   title: string  // Descripción del dato a extraer
   example: string  // Instrucción de transformación
@@ -446,7 +447,7 @@ export default function TemplatesPage() {
 
         {/* Dialog de Crear */}
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="w-[90vw] max-w-[1200px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Crear Nueva Plantilla</DialogTitle>
             </DialogHeader>
@@ -459,7 +460,7 @@ export default function TemplatesPage() {
 
         {/* Dialog de Editar */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="w-[90vw] max-w-[1200px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Editar Plantilla</DialogTitle>
             </DialogHeader>
@@ -606,7 +607,7 @@ function CreateTemplateForm({ onClose, onSuccess }: { onClose: () => void; onSuc
     description: "",
   })
   const [columns, setColumns] = useState<GridColumn[]>([
-    { col: "A", title: "", example: "" }
+    { id: crypto.randomUUID(), col: "A", title: "", example: "" }
   ])
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -622,8 +623,8 @@ function CreateTemplateForm({ onClose, onSuccess }: { onClose: () => void; onSuc
 
     if (over && active.id !== over.id) {
       setColumns((items) => {
-        const oldIndex = items.findIndex((_, i) => `column-${i}` === active.id)
-        const newIndex = items.findIndex((_, i) => `column-${i}` === over.id)
+        const oldIndex = items.findIndex((col) => col.id === active.id)
+        const newIndex = items.findIndex((col) => col.id === over.id)
 
         const reorderedColumns = arrayMove(items, oldIndex, newIndex)
         // Actualizar las letras de las columnas
@@ -637,7 +638,7 @@ function CreateTemplateForm({ onClose, onSuccess }: { onClose: () => void; onSuc
 
   const addColumn = () => {
     const nextCol = numToCol(columns.length)
-    setColumns([...columns, { col: nextCol, title: "", example: "" }])
+    setColumns([...columns, { id: crypto.randomUUID(), col: nextCol, title: "", example: "" }])
   }
 
   const removeColumn = (index: number) => {
@@ -684,11 +685,14 @@ function CreateTemplateForm({ onClose, onSuccess }: { onClose: () => void; onSuc
       // Generar ID único para la nueva plantilla
       const newId = `tpl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
+      // Remover el campo id de las columnas antes de enviar (solo se usa para drag and drop)
+      const columnsToSave = columns.map(({ id, ...col }) => col)
+
       const templateData: GridTemplate = {
         id: newId,
         name: formData.name,
         description: formData.description,
-        columns: columns,
+        columns: columnsToSave,
       }
 
       const response = await fetch(`${API_BASE}/templates`, {
@@ -768,14 +772,14 @@ function CreateTemplateForm({ onClose, onSuccess }: { onClose: () => void; onSuc
             onDragEnd={handleDragEnd}
           >
             <SortableContext
-              items={columns.map((_, i) => `column-${i}`)}
+              items={columns.map((col) => col.id!)}
               strategy={verticalListSortingStrategy}
             >
               <div className="space-y-3">
                 {columns.map((col, index) => (
                   <SortableColumn
-                    key={`column-${index}`}
-                    id={`column-${index}`}
+                    key={col.id}
+                    id={col.id!}
                     col={col}
                     index={index}
                     onUpdate={updateColumn}
@@ -828,7 +832,12 @@ function EditTemplateForm({ template, onClose, onSuccess }: { template: GridTemp
     name: template.name,
     description: template.description,
   })
-  const [columns, setColumns] = useState<GridColumn[]>(template.columns.map(col => ({ ...col })))
+  const [columns, setColumns] = useState<GridColumn[]>(
+    template.columns.map(col => ({
+      ...col,
+      id: col.id || crypto.randomUUID()
+    }))
+  )
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const sensors = useSensors(
@@ -843,8 +852,8 @@ function EditTemplateForm({ template, onClose, onSuccess }: { template: GridTemp
 
     if (over && active.id !== over.id) {
       setColumns((items) => {
-        const oldIndex = items.findIndex((_, i) => `column-${i}` === active.id)
-        const newIndex = items.findIndex((_, i) => `column-${i}` === over.id)
+        const oldIndex = items.findIndex((col) => col.id === active.id)
+        const newIndex = items.findIndex((col) => col.id === over.id)
 
         const reorderedColumns = arrayMove(items, oldIndex, newIndex)
         // Actualizar las letras de las columnas
@@ -858,7 +867,7 @@ function EditTemplateForm({ template, onClose, onSuccess }: { template: GridTemp
 
   const addColumn = () => {
     const nextCol = numToCol(columns.length)
-    setColumns([...columns, { col: nextCol, title: "", example: "" }])
+    setColumns([...columns, { id: crypto.randomUUID(), col: nextCol, title: "", example: "" }])
   }
 
   const removeColumn = (index: number) => {
@@ -900,11 +909,14 @@ function EditTemplateForm({ template, onClose, onSuccess }: { template: GridTemp
         headers["ngrok-skip-browser-warning"]= "true"
       }
 
+      // Remover el campo id de las columnas antes de enviar (solo se usa para drag and drop)
+      const columnsToSave = columns.map(({ id, ...col }) => col)
+
       const updatedTemplate: GridTemplate = {
         id: template.id,
         name: formData.name,
         description: formData.description,
-        columns: columns,
+        columns: columnsToSave,
       }
 
       // El backend usa POST para upsert (crear o actualizar)
@@ -969,14 +981,14 @@ function EditTemplateForm({ template, onClose, onSuccess }: { template: GridTemp
           onDragEnd={handleDragEnd}
         >
           <SortableContext
-            items={columns.map((_, i) => `column-${i}`)}
+            items={columns.map((col) => col.id!)}
             strategy={verticalListSortingStrategy}
           >
             <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
               {columns.map((col, index) => (
                 <SortableColumn
-                  key={`column-${index}`}
-                  id={`column-${index}`}
+                  key={col.id}
+                  id={col.id!}
                   col={col}
                   index={index}
                   onUpdate={updateColumn}
