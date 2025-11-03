@@ -94,9 +94,9 @@ export default function LoginPage() {
         transition={{ duration: 0.5 }}
         className="w-full max-w-md"
       >
-        <div className="mb-8 text-center">
-          <div className="flex justify-center mb-4">
-            <div className="relative w-16 h-16">
+        <div className="text-center">
+          <div className="flex justify-center">
+            <div className="relative w-64 h-64">
               <Image
                 src="/transformar-logo.png"
                 alt="TransformAR Logo"
@@ -105,7 +105,6 @@ export default function LoginPage() {
               />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-foreground">TransformAR</h1>
         </div>
 
         <Card className="border-muted/60 shadow-lg" data-testid="login-card">
