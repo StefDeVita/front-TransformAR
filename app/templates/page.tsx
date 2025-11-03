@@ -27,7 +27,25 @@ import {
   Lightbulb,
   CheckCircle,
   Loader2,
+  GripVertical,
 } from "lucide-react"
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 
@@ -428,7 +446,7 @@ export default function TemplatesPage() {
 
         {/* Dialog de Crear */}
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Crear Nueva Plantilla</DialogTitle>
             </DialogHeader>
@@ -441,7 +459,7 @@ export default function TemplatesPage() {
 
         {/* Dialog de Editar */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Editar Plantilla</DialogTitle>
             </DialogHeader>
@@ -502,6 +520,85 @@ export default function TemplatesPage() {
   )
 }
 
+// Componente de columna arrastrable
+interface SortableColumnProps {
+  id: string
+  col: GridColumn
+  index: number
+  onUpdate: (index: number, field: keyof GridColumn, value: string) => void
+  onRemove: (index: number) => void
+  canRemove: boolean
+}
+
+function SortableColumn({ id, col, index, onUpdate, onRemove, canRemove }: SortableColumnProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <Card ref={setNodeRef} style={style} className={`p-4 ${isDragging ? "shadow-lg" : ""}`}>
+      <div className="space-y-3">
+        <div className="flex items-start gap-3">
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              type="button"
+              className="cursor-grab active:cursor-grabbing touch-none hover:bg-accent rounded p-1"
+              {...attributes}
+              {...listeners}
+            >
+              <GripVertical className="w-4 h-4 text-muted-foreground" />
+            </button>
+            <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+              <span className="font-mono font-bold text-primary">{col.col}</span>
+            </div>
+          </div>
+          <div className="flex-1 space-y-3">
+            <div>
+              <Label className="text-xs">Título *</Label>
+              <Input
+                value={col.title}
+                onChange={(e) => onUpdate(index, "title", e.target.value)}
+                placeholder="Ej: Cliente, Fecha, Monto"
+                required
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Instrucciones (opcional)</Label>
+              <Textarea
+                value={col.example}
+                onChange={(e) => onUpdate(index, "example", e.target.value)}
+                placeholder="Ej: formato dd/mm/yyyy"
+                rows={2}
+              />
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => onRemove(index)}
+            disabled={!canRemove}
+            className="flex-shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
 function CreateTemplateForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const { toast } = useToast()
   const [formData, setFormData] = useState({
@@ -513,6 +610,31 @@ function CreateTemplateForm({ onClose, onSuccess }: { onClose: () => void; onSuc
   ])
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      setColumns((items) => {
+        const oldIndex = items.findIndex((_, i) => `column-${i}` === active.id)
+        const newIndex = items.findIndex((_, i) => `column-${i}` === over.id)
+
+        const reorderedColumns = arrayMove(items, oldIndex, newIndex)
+        // Actualizar las letras de las columnas
+        return reorderedColumns.map((col, idx) => ({
+          ...col,
+          col: numToCol(idx)
+        }))
+      })
+    }
+  }
+
   const addColumn = () => {
     const nextCol = numToCol(columns.length)
     setColumns([...columns, { col: nextCol, title: "", example: "" }])
@@ -520,7 +642,12 @@ function CreateTemplateForm({ onClose, onSuccess }: { onClose: () => void; onSuc
 
   const removeColumn = (index: number) => {
     if (columns.length > 1) {
-      setColumns(columns.filter((_, i) => i !== index))
+      const newColumns = columns.filter((_, i) => i !== index)
+      // Actualizar las letras de las columnas
+      setColumns(newColumns.map((col, idx) => ({
+        ...col,
+        col: numToCol(idx)
+      })))
     }
   }
 
@@ -633,55 +760,43 @@ function CreateTemplateForm({ onClose, onSuccess }: { onClose: () => void; onSuc
         </div>
 
         <div>
-          <div className="flex items-center justify-between mb-3">
-            <Label>Columnas</Label>
-            <Button type="button" variant="outline" size="sm" onClick={addColumn}>
-              <Plus className="w-4 h-4 mr-1" />
-              Agregar Columna
-            </Button>
-          </div>
+          <Label className="mb-3 block">Columnas</Label>
 
-          <div className="space-y-3">
-            {columns.map((col, index) => (
-              <Card key={index} className="p-4">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <span className="font-mono font-bold text-primary">{col.col}</span>
-                    </div>
-                    <div className="flex-1 grid grid-cols-2 gap-2">
-                      <div>
-                        <Label className="text-xs">Título *</Label>
-                        <Input
-                          value={col.title}
-                          onChange={(e) => updateColumn(index, "title", e.target.value)}
-                          placeholder="Ej: Cliente, Fecha, Monto"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">Instrucciones (opcional)</Label>
-                        <Input
-                          value={col.example}
-                          onChange={(e) => updateColumn(index, "example", e.target.value)}
-                          placeholder="Ej: formato dd/mm/yyyy"
-                        />
-                      </div>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeColumn(index)}
-                      disabled={columns.length === 1}
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={columns.map((_, i) => `column-${i}`)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-3">
+                {columns.map((col, index) => (
+                  <SortableColumn
+                    key={`column-${index}`}
+                    id={`column-${index}`}
+                    col={col}
+                    index={index}
+                    onUpdate={updateColumn}
+                    onRemove={removeColumn}
+                    canRemove={columns.length > 1}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addColumn}
+            className="w-full mt-3"
+          >
+            <Plus className="w-4 h-4 mr-1" />
+            Agregar Columna
+          </Button>
         </div>
 
         <div className="flex gap-3 pt-4 border-t">
@@ -716,6 +831,31 @@ function EditTemplateForm({ template, onClose, onSuccess }: { template: GridTemp
   const [columns, setColumns] = useState<GridColumn[]>(template.columns.map(col => ({ ...col })))
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      setColumns((items) => {
+        const oldIndex = items.findIndex((_, i) => `column-${i}` === active.id)
+        const newIndex = items.findIndex((_, i) => `column-${i}` === over.id)
+
+        const reorderedColumns = arrayMove(items, oldIndex, newIndex)
+        // Actualizar las letras de las columnas
+        return reorderedColumns.map((col, idx) => ({
+          ...col,
+          col: numToCol(idx)
+        }))
+      })
+    }
+  }
+
   const addColumn = () => {
     const nextCol = numToCol(columns.length)
     setColumns([...columns, { col: nextCol, title: "", example: "" }])
@@ -723,7 +863,12 @@ function EditTemplateForm({ template, onClose, onSuccess }: { template: GridTemp
 
   const removeColumn = (index: number) => {
     if (columns.length > 1) {
-      setColumns(columns.filter((_, i) => i !== index))
+      const newColumns = columns.filter((_, i) => i !== index)
+      // Actualizar las letras de las columnas
+      setColumns(newColumns.map((col, idx) => ({
+        ...col,
+        col: numToCol(idx)
+      })))
     }
   }
 
@@ -816,53 +961,43 @@ function EditTemplateForm({ template, onClose, onSuccess }: { template: GridTemp
       </div>
 
       <div>
-        <div className="flex items-center justify-between mb-3">
-          <Label>Columnas</Label>
-          <Button type="button" variant="outline" size="sm" onClick={addColumn}>
-            <Plus className="w-4 h-4 mr-1" />
-            Agregar Columna
-          </Button>
-        </div>
+        <Label className="mb-3 block">Columnas</Label>
 
-        <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
-          {columns.map((col, index) => (
-            <Card key={index} className="p-4">
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <span className="font-mono font-bold text-primary">{col.col}</span>
-                  </div>
-                  <div className="flex-1 grid grid-cols-2 gap-2">
-                    <div>
-                      <Label className="text-xs">Título *</Label>
-                      <Input
-                        value={col.title}
-                        onChange={(e) => updateColumn(index, "title", e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Instrucciones (opcional)</Label>
-                      <Input
-                        value={col.example}
-                        onChange={(e) => updateColumn(index, "example", e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeColumn(index)}
-                    disabled={columns.length === 1}
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={columns.map((_, i) => `column-${i}`)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+              {columns.map((col, index) => (
+                <SortableColumn
+                  key={`column-${index}`}
+                  id={`column-${index}`}
+                  col={col}
+                  index={index}
+                  onUpdate={updateColumn}
+                  onRemove={removeColumn}
+                  canRemove={columns.length > 1}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={addColumn}
+          className="w-full mt-3"
+        >
+          <Plus className="w-4 h-4 mr-1" />
+          Agregar Columna
+        </Button>
       </div>
 
       <div className="flex gap-3 pt-4 border-t">
