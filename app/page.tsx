@@ -130,6 +130,12 @@ export default function HomePage() {
   const [sourceConnected, setSourceConnected] = useState<boolean>(true)
   const [checkingConnection, setCheckingConnection] = useState<boolean>(false)
 
+  // Permisos de suscripción
+  const [subscriptionPreferences, setSubscriptionPreferences] = useState<{
+    mailing: boolean
+    messaging: boolean
+  } | null>(null)
+
   // Procesamiento
   const [isProcessing, setIsProcessing] = useState(false)
 
@@ -155,6 +161,46 @@ export default function HomePage() {
         setTemplates(Array.isArray(data) ? data : [])
       } catch (e) {
         console.error(e)
+      }
+    })()
+  }, [])
+
+  // Cargar permisos de suscripción
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const token = localStorage.getItem("authToken")
+        const headers: HeadersInit = {
+          "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "true"
+        }
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`
+        }
+
+        const response = await fetch(`${API_BASE}/auth/subscription-preferences`, {
+          headers,
+          cache: "no-store",
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          setSubscriptionPreferences({
+            mailing: data.mailing ?? true,
+            messaging: data.messaging ?? true
+          })
+        } else {
+          setSubscriptionPreferences({
+            mailing: true,
+            messaging: true
+          })
+        }
+      } catch (error) {
+        console.error("Error loading subscription preferences:", error)
+        setSubscriptionPreferences({
+          mailing: true,
+          messaging: true
+        })
       }
     })()
   }, [])
@@ -772,7 +818,15 @@ export default function HomePage() {
                       </div>
                     </div>
                   </button>
-                  <button onClick={()=>handlePickSource("gmail")} className={`text-left rounded-xl border p-4 hover:shadow transition ${source==="gmail"?"bg-primary/10 border-primary":"bg-card"}`}>
+                  <button
+                    onClick={()=>handlePickSource("gmail")}
+                    disabled={subscriptionPreferences && !subscriptionPreferences.mailing}
+                    className={`text-left rounded-xl border p-4 transition ${
+                      subscriptionPreferences && !subscriptionPreferences.mailing
+                        ? "opacity-40 cursor-not-allowed"
+                        : "hover:shadow"
+                    } ${source==="gmail"?"bg-primary/10 border-primary":"bg-card"}`}
+                  >
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-lg bg-rose-200/40 flex items-center justify-center"><Mail className="w-5 h-5" /></div>
                       <div>
@@ -781,7 +835,15 @@ export default function HomePage() {
                       </div>
                     </div>
                   </button>
-                  <button onClick={()=>handlePickSource("outlook")} className={`text-left rounded-xl border p-4 hover:shadow transition ${source==="outlook"?"bg-primary/10 border-primary":"bg-card"}`}>
+                  <button
+                    onClick={()=>handlePickSource("outlook")}
+                    disabled={subscriptionPreferences && !subscriptionPreferences.mailing}
+                    className={`text-left rounded-xl border p-4 transition ${
+                      subscriptionPreferences && !subscriptionPreferences.mailing
+                        ? "opacity-40 cursor-not-allowed"
+                        : "hover:shadow"
+                    } ${source==="outlook"?"bg-primary/10 border-primary":"bg-card"}`}
+                  >
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-lg bg-blue-200/40 flex items-center justify-center"><Send className="w-5 h-5" /></div>
                       <div>
@@ -799,7 +861,15 @@ export default function HomePage() {
                       </div>
                     </div>
                   </button>
-                  <button onClick={()=>handlePickSource("whatsapp")} className={`text-left rounded-xl border p-4 hover:shadow transition ${source==="whatsapp"?"bg-primary/10 border-primary":"bg-card"}`}>
+                  <button
+                    onClick={()=>handlePickSource("whatsapp")}
+                    disabled={subscriptionPreferences && !subscriptionPreferences.messaging}
+                    className={`text-left rounded-xl border p-4 transition ${
+                      subscriptionPreferences && !subscriptionPreferences.messaging
+                        ? "opacity-40 cursor-not-allowed"
+                        : "hover:shadow"
+                    } ${source==="whatsapp"?"bg-primary/10 border-primary":"bg-card"}`}
+                  >
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-lg bg-green-200/40 flex items-center justify-center"><MessageSquare className="w-5 h-5 text-green-600" /></div>
                       <div>
@@ -808,7 +878,15 @@ export default function HomePage() {
                       </div>
                     </div>
                   </button>
-                  <button onClick={()=>handlePickSource("telegram")} className={`text-left rounded-xl border p-4 hover:shadow transition ${source==="telegram"?"bg-primary/10 border-primary":"bg-card"}`}>
+                  <button
+                    onClick={()=>handlePickSource("telegram")}
+                    disabled={subscriptionPreferences && !subscriptionPreferences.messaging}
+                    className={`text-left rounded-xl border p-4 transition ${
+                      subscriptionPreferences && !subscriptionPreferences.messaging
+                        ? "opacity-40 cursor-not-allowed"
+                        : "hover:shadow"
+                    } ${source==="telegram"?"bg-primary/10 border-primary":"bg-card"}`}
+                  >
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-lg bg-sky-200/40 flex items-center justify-center"><Phone className="w-5 h-5 text-sky-600" /></div>
                       <div>

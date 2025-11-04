@@ -36,6 +36,14 @@ export default function SettingsPage() {
 
   const [loadingStatuses, setLoadingStatuses] = useState(true)
 
+  // Estados para permisos de suscripción
+  const [subscriptionPreferences, setSubscriptionPreferences] = useState<{
+    mailing: boolean
+    messaging: boolean
+  } | null>(null)
+  const [restrictionModalOpen, setRestrictionModalOpen] = useState(false)
+  const [restrictionMessage, setRestrictionMessage] = useState("")
+
   // Estados para diálogos de WhatsApp y Telegram
   const [whatsappDialogOpen, setWhatsappDialogOpen] = useState(false)
   const [telegramDialogOpen, setTelegramDialogOpen] = useState(false)
@@ -135,9 +143,49 @@ export default function SettingsPage() {
       window.history.replaceState({}, document.title, window.location.pathname)
     }
 
-    // Cargar estados de conexión
+    // Cargar permisos de suscripción y estados de conexión
+    loadSubscriptionPreferences()
     loadConnectionStatuses()
   }, [])
+
+  const loadSubscriptionPreferences = async () => {
+    try {
+      const token = localStorage.getItem("authToken")
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true"
+      }
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`
+      }
+
+      const response = await fetch(`${API_BASE}/auth/subscription-preferences`, {
+        headers,
+        cache: "no-store",
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setSubscriptionPreferences({
+          mailing: data.mailing ?? true, // Por defecto true si no está definido
+          messaging: data.messaging ?? true
+        })
+      } else {
+        // Si hay error, asumir que tiene permisos (para no bloquear en caso de error del backend)
+        setSubscriptionPreferences({
+          mailing: true,
+          messaging: true
+        })
+      }
+    } catch (error) {
+      console.error("Error loading subscription preferences:", error)
+      // En caso de error, asumir que tiene permisos
+      setSubscriptionPreferences({
+        mailing: true,
+        messaging: true
+      })
+    }
+  }
 
   const loadConnectionStatuses = async () => {
     try {
@@ -189,6 +237,28 @@ export default function SettingsPage() {
   const handleToggleConnection = async (integrationId: string) => {
     const integration = integrations.find((i) => i.id === integrationId)
     if (!integration) return
+
+    // Verificar permisos de suscripción antes de permitir conexión
+    if (!integration.connected && subscriptionPreferences) {
+      const isMailingIntegration = integrationId === "gmail" || integrationId === "outlook"
+      const isMessagingIntegration = integrationId === "whatsapp" || integrationId === "telegram"
+
+      if (isMailingIntegration && !subscriptionPreferences.mailing) {
+        setRestrictionMessage(
+          "Tu plan actual no incluye acceso a integraciones de correo electrónico (Gmail y Outlook). Por favor, actualiza tu suscripción para acceder a esta funcionalidad."
+        )
+        setRestrictionModalOpen(true)
+        return
+      }
+
+      if (isMessagingIntegration && !subscriptionPreferences.messaging) {
+        setRestrictionMessage(
+          "Tu plan actual no incluye acceso a integraciones de mensajería (WhatsApp y Telegram). Por favor, actualiza tu suscripción para acceder a esta funcionalidad."
+        )
+        setRestrictionModalOpen(true)
+        return
+      }
+    }
 
     // Si es WhatsApp o Telegram y no está conectado, abrir diálogo para capturar datos
     if (!integration.connected) {
@@ -739,6 +809,31 @@ export default function SettingsPage() {
               }}
             >
               Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de restricción de suscripción */}
+      <Dialog open={restrictionModalOpen} onOpenChange={setRestrictionModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <AlertCircle className="w-5 h-5" />
+              Funcionalidad no disponible
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground">
+              {restrictionMessage}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => setRestrictionModalOpen(false)}
+              className="w-full"
+            >
+              Entendido
             </Button>
           </DialogFooter>
         </DialogContent>
