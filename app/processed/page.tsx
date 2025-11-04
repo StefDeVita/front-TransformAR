@@ -170,7 +170,7 @@ export default function ProcessedPage() {
       <SidebarNavigation />
 
       <div className="flex-1 flex flex-col">
-        <MainHeader title="Dashboard" />
+        <MainHeader title="Historial" />
 
         <main className="flex-1 p-6 overflow-y-auto">
           <motion.div
@@ -212,7 +212,7 @@ export default function ProcessedPage() {
                     </div>
                     <div>
                       <p className="text-xl font-bold">{stats.total}</p>
-                      <p className="text-xs text-muted-foreground">Total Trabajos</p>
+                      <p className="text-xs text-muted-foreground">Trabajos Totales</p>
                     </div>
                   </div>
                 </CardContent>
@@ -238,7 +238,7 @@ export default function ProcessedPage() {
                     </div>
                     <div>
                       <p className="text-xl font-bold">{stats.failed}</p>
-                      <p className="text-xs text-muted-foreground">Errores</p>
+                      <p className="text-xs text-muted-foreground">Con Errores</p>
                     </div>
                   </div>
                 </CardContent>
@@ -262,7 +262,6 @@ export default function ProcessedPage() {
                         <SelectContent>
                           <SelectItem value="all">Todos</SelectItem>
                           <SelectItem value="completed">Completados</SelectItem>
-                          <SelectItem value="processing">Procesando</SelectItem>
                           <SelectItem value="failed">Con Error</SelectItem>
                         </SelectContent>
                       </Select>

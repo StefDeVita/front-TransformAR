@@ -24,8 +24,8 @@ export function SidebarNavigation() {
             <Image
               src="/transformar-logo.png"
               alt="TransformAR"
-              width={120}
-              height={120}
+              width={256}
+              height={256}
               className="object-contain drop-shadow-lg"
             />
           </div>

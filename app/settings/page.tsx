@@ -543,7 +543,7 @@ export default function SettingsPage() {
       <SidebarNavigation />
 
       <div className="flex-1 flex flex-col">
-        <MainHeader title="Configuración" />
+        <MainHeader title="Configuración del Sistema" />
 
         <main className="flex-1 p-6 overflow-auto">
           <motion.div
@@ -552,15 +552,11 @@ export default function SettingsPage() {
             transition={{ duration: 0.5 }}
             className="max-w-4xl mx-auto space-y-6"
           >
-            <div className="flex items-center gap-2">
-              <Settings className="w-5 h-5 text-primary" />
-              <h2 className="text-2xl font-bold">Configuración del Sistema</h2>
-            </div>
 
             {/* Integrations */}
             <Card>
               <CardHeader>
-                <CardTitle>Integraciones de Comunicación</CardTitle>
+                <CardTitle>Conexiones Externas</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
                 {loadingStatuses ? (

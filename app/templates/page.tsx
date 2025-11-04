@@ -246,7 +246,7 @@ export default function TemplatesPage() {
         <SidebarNavigation />
 
         <div className="flex-1 flex flex-col">
-          <MainHeader title="📊 Mis Plantillas" showUploadButton={true} onUploadClick={handleCreateTemplate} />
+          <MainHeader title="Mis Plantillas" showUploadButton={true} onUploadClick={handleCreateTemplate} />
 
           <main className="flex-1 p-6 overflow-y-auto">
             <motion.div
@@ -266,7 +266,7 @@ export default function TemplatesPage() {
                       <p className="text-sm text-muted-foreground leading-relaxed">
                         Son formatos que definen qué información extraer de sus documentos y cómo organizarla.
                         Por ejemplo, puede definir columnas como "Cliente", "Fecha", "Monto" y el sistema
-                        extraerá automáticamente esos datos de cada documento.
+                        extraerá automáticamente esos datos de cada documento en el formato que le especifiques en las instrucciones.
                       </p>
                     </div>
                   </div>
@@ -314,7 +314,7 @@ export default function TemplatesPage() {
                         <p className="text-2xl font-bold text-blue-600">
                           {templates.length > 0 ? Math.round(templates.reduce((sum, t) => sum + t.columns.length, 0) / templates.length) : 0}
                         </p>
-                        <p className="text-sm text-muted-foreground">Promedio por Plantilla</p>
+                        <p className="text-sm text-muted-foreground">Columnas promedio por Plantilla</p>
                       </div>
                     </div>
                   </CardContent>
